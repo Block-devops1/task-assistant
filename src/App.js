@@ -28,7 +28,6 @@ import {
   BookOpen,
   Activity,
   CheckCircle,
-  Clock,
 } from "lucide-react";
 
 const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
@@ -286,7 +285,30 @@ const App = () => {
                 />{" "}
                 ERIC'S STRATEGIC BRIEFING
               </p>
-              <p style={{ margin: "8px 0 0 0", fontWeight: "600" }}>
+              <div>
+                <button
+                  onClick={() => setShieldActive((prev) => !prev)}
+                  style={{
+                    fontSize: "0.6rem",
+                    padding: "4px 10px",
+                    borderRadius: "8px",
+                    background: shieldActive ? "#ef4444" : "#334155",
+                    color: "white",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                  }}
+                >
+                  SHIELD: {shieldActive ? "ON" : "OFF"}
+                </button>
+              </div>
+              <p
+                style={{
+                  margin: "12px 0 0 0",
+                  fontWeight: "600",
+                  fontSize: "1rem",
+                }}
+              >
                 "{briefingData.message}"
               </p>
             </div>
