@@ -31,8 +31,8 @@ import {
   Clock,
 } from "lucide-react";
 
-const supabaseUrl = "https://zexxcsqorwrzqmaatxsd.supabase.co";
-const supabaseKey = "sb_publishable_tgy-F1rCTN5TFNCoRyAzyw_IgFFN4Rb";
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL;
+const supabaseKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const App = () => {
@@ -655,10 +655,12 @@ const App = () => {
             </select>
             <button
               onClick={async () => {
-                if (!subject || !duration) return;
+                const cleanSubject = subject.replace(/[<>]/g, "");
+                if (!cleanSubject || !duration) return;
                 await supabase.from("habit_logs").insert([
                   {
                     subject,
+                    cleanSubject,
                     duration: parseInt(duration),
                     habit_type: habitType,
                     user_id: session.user.id,
