@@ -170,6 +170,31 @@ const App = () => {
     border: isDarkMode ? "#334155" : "#e2e8f0",
   };
 
+  if (!session) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          background: "#020617",
+          color: "white",
+        }}
+      >
+        <h2>LAMBERT ENGINE</h2>
+        <p style={{ opacity: 0.6 }}>Strategic Access Required</p>
+        <button
+          onClick={() => supabase.auth.signInWithOAuth({ provider: "google" })}
+          style={actionBtn}
+        >
+          Sign In / Create Account
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
