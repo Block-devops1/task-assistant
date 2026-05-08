@@ -186,10 +186,12 @@ const App = () => {
         <h2>LAMBERT ENGINE</h2>
         <p style={{ opacity: 0.6 }}>Strategic Access Required</p>
         <button
-          onClick={() => supabase.auth.signInWithOAuth({ provider: "google" })}
+          onClick={() =>
+            supabase.auth.signInWithOtp({ email: "your-email@example.com" })
+          }
           style={actionBtn}
         >
-          Sign In / Create Account
+          Sign In via Email
         </button>
       </div>
     );
