@@ -235,8 +235,11 @@ const App = () => {
           </div>
           <LogOut
             size={18}
-            onClick={() => supabase.auth.signOut()}
-            style={{ cursor: "pointer" }}
+            onClick={async () => {
+              await supabase.auth.signOut();
+              setSession(null); // Force the UI to go back to the Sign-In page
+            }}
+            style={{ cursor: "pointer", zIndex: 100 }}
           />
         </header>
 
@@ -702,21 +705,31 @@ const App = () => {
             </select>
             <button
               onClick={async () => {
-                const cleanSubject = subject.replace(/[<>]/g, "");
-                if (!cleanSubject || !duration) return;
-                await supabase.from("habit_logs").insert([
-                  {
-                    subject,
-                    cleanSubject,
-                    duration: parseInt(duration),
-                    habit_type: habitType,
-                    user_id: session.user.id,
-                  },
-                ]);
-                fetchLogs();
-                setIsModalOpen(false);
-                setSubject("");
-                setDuration("");
+                try {
+                  const cleanSubject = subject.replace(/[<>]/g, "");
+                  if (!cleanSubject || !duration) {
+                    alert("Please fill in all fields");
+                    return;
+                  }
+
+                  const { error } = await supabase.from("habit_logs").insert([
+                    {
+                      subject: cleanSubject,
+                      duration: parseInt(duration),
+                      habit_type: habitType,
+                      user_id: session.user.id,
+                    },
+                  ]);
+
+                  if (error) throw error; // This will tell us EXACTLY why it failed
+
+                  fetchLogs();
+                  setIsModalOpen(false);
+                  setSubject("");
+                  setDuration("");
+                } catch (err) {
+                  alert("Sync Failed: " + err.message); // This popup will show the real error
+                }
               }}
               style={actionBtn}
             >
