@@ -3067,16 +3067,14 @@ const App = () => {
                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
                 placeholder="Ask Lambert anything..."
                 style={{
-                  ...{
-                    width: "100%",
-                    padding: "14px 16px",
-                    borderRadius: "12px",
-                    background: th.inputBg,
-                    color: th.text,
-                    border: `1px solid ${th.inputBdr}`,
-                    fontSize: "0.92rem",
-                    fontFamily: "'Syne',sans-serif",
-                  },
+                  width: "100%",
+                  padding: "14px 16px",
+                  borderRadius: "12px",
+                  background: th.inputBg,
+                  color: th.text,
+                  border: `1px solid ${th.inputBdr}`,
+                  fontSize: "0.92rem",
+                  fontFamily: "'Syne',sans-serif",
                   flex: 1,
                   marginBottom: 0,
                 }}
