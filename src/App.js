@@ -574,7 +574,10 @@ const App = () => {
       .eq("user_id", session.user.id)
       .order("created_at", { ascending: true })
       .limit(60);
-    if (error) { console.error(error.message); return; }
+    if (error) {
+      console.error(error.message);
+      return;
+    }
     if (data) {
       setChatHistory(data.map((m, i) => ({ ...m, id: i })));
       setChatLoaded(true);
@@ -583,9 +586,9 @@ const App = () => {
 
   // ── Chat: save a message to Supabase ──
   const saveChatMessage = async (role, content) => {
-    await supabase.from("lambert_conversations").insert([
-      { user_id: session.user.id, role, content },
-    ]);
+    await supabase
+      .from("lambert_conversations")
+      .insert([{ user_id: session.user.id, role, content }]);
   };
 
   // ── Chat: send message to Lambert ──
@@ -612,13 +615,21 @@ const App = () => {
       });
       const data = await res.json();
       const reply = data.reply || "Lambert is unavailable right now.";
-      const assistantMsg = { role: "assistant", content: reply, id: Date.now() + 1 };
+      const assistantMsg = {
+        role: "assistant",
+        content: reply,
+        id: Date.now() + 1,
+      };
       setChatHistory((prev) => [...prev, assistantMsg]);
       await saveChatMessage("assistant", reply);
     } catch {
       setChatHistory((prev) => [
         ...prev,
-        { role: "assistant", content: "Connection lost. Try again.", id: Date.now() + 1 },
+        {
+          role: "assistant",
+          content: "Connection lost. Try again.",
+          id: Date.now() + 1,
+        },
       ]);
     } finally {
       setChatLoading(false);
@@ -2963,18 +2974,40 @@ const App = () => {
             </div>
           </div>
         )}
-      </div>
 
-              {/* ════ LAMBERT CHAT ════ */}
+        {/* ════ LAMBERT CHAT ════ */}
         {activeTab === "chat" && (
-          <div className="fu" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 180px)" }}>
-            <div style={{ ...card, marginBottom: "12px", padding: "16px 20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
+            className="fu"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              height: "calc(100vh - 180px)",
+            }}
+          >
+            <div
+              style={{ ...card, marginBottom: "12px", padding: "16px 20px" }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
                 <Zap size={16} color="#3b82f6" />
-                <span style={{ fontWeight: "700", fontSize: "1rem", color: th.text }}>
+                <span
+                  style={{
+                    fontWeight: "700",
+                    fontSize: "1rem",
+                    color: th.text,
+                  }}
+                >
                   Lambert
                 </span>
-                <span style={{ fontSize: "0.65rem", color: th.textMuted, marginLeft: "auto" }}>
+                <span
+                  style={{
+                    fontSize: "0.65rem",
+                    color: th.textMuted,
+                    marginLeft: "auto",
+                  }}
+                >
                   Remembers your history
                 </span>
               </div>
@@ -2990,8 +3023,12 @@ const App = () => {
                 gap: "12px",
                 paddingBottom: "12px",
               }}
-              ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}
-              onMouseEnter={() => { if (!chatLoaded) fetchChatHistory(); }}
+              ref={(el) => {
+                if (el) el.scrollTop = el.scrollHeight;
+              }}
+              onMouseEnter={() => {
+                if (!chatLoaded) fetchChatHistory();
+              }}
             >
               {chatHistory.length === 0 && !chatLoading && (
                 <div
@@ -3003,12 +3040,19 @@ const App = () => {
                     lineHeight: 1.7,
                   }}
                 >
-                  <div style={{ fontSize: "1.8rem", marginBottom: "10px" }}>⚡</div>
+                  <div style={{ fontSize: "1.8rem", marginBottom: "10px" }}>
+                    ⚡
+                  </div>
                   Lambert is watching your data.
-                  <br />Ask him anything — or brace for honesty.
+                  <br />
+                  Ask him anything — or brace for honesty.
                   <br />
                   <span
-                    style={{ color: "#3b82f6", cursor: "pointer", fontSize: "0.75rem" }}
+                    style={{
+                      color: "#3b82f6",
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                    }}
                     onClick={fetchChatHistory}
                   >
                     Load past conversations
@@ -3020,18 +3064,26 @@ const App = () => {
                   key={msg.id}
                   style={{
                     display: "flex",
-                    justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                    justifyContent:
+                      msg.role === "user" ? "flex-end" : "flex-start",
                   }}
                 >
                   <div
                     style={{
                       maxWidth: "82%",
                       padding: "12px 16px",
-                      borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                      background: msg.role === "user"
-                        ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
-                        : th.card,
-                      border: msg.role === "user" ? "none" : `1px solid ${th.cardBorder}`,
+                      borderRadius:
+                        msg.role === "user"
+                          ? "18px 18px 4px 18px"
+                          : "18px 18px 18px 4px",
+                      background:
+                        msg.role === "user"
+                          ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
+                          : th.card,
+                      border:
+                        msg.role === "user"
+                          ? "none"
+                          : `1px solid ${th.cardBorder}`,
                       color: msg.role === "user" ? "#fff" : th.text,
                       fontSize: "0.88rem",
                       lineHeight: 1.6,
@@ -3064,7 +3116,9 @@ const App = () => {
               <input
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !e.shiftKey && handleChatSend()
+                }
                 placeholder="Ask Lambert anything..."
                 style={{
                   width: "100%",
@@ -3083,13 +3137,18 @@ const App = () => {
                 onClick={handleChatSend}
                 disabled={chatLoading || !chatInput.trim()}
                 style={{
-                  background: chatInput.trim() ? "linear-gradient(135deg,#3b82f6,#1d4ed8)" : th.inputBg,
+                  background: chatInput.trim()
+                    ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
+                    : th.inputBg,
                   color: chatInput.trim() ? "#fff" : th.textMuted,
                   border: "none",
                   borderRadius: "12px",
                   padding: "0 20px",
                   fontWeight: "700",
-                  cursor: chatLoading || !chatInput.trim() ? "not-allowed" : "pointer",
+                  cursor:
+                    chatLoading || !chatInput.trim()
+                      ? "not-allowed"
+                      : "pointer",
                   fontSize: "0.88rem",
                   whiteSpace: "nowrap",
                   fontFamily: "'Syne',sans-serif",
