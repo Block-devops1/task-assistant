@@ -27,7 +27,6 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Star,
-  AlertTriangle,
 } from "lucide-react";
 import {
   XAxis,
@@ -40,9 +39,7 @@ import {
   Pie,
   ComposedChart,
   Bar,
-  Line,
   ReferenceLine,
-  Legend,
 } from "recharts";
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
@@ -436,6 +433,11 @@ const App = () => {
   const [goalText, setGoalText] = useState(""); // what you want to achieve
   const [goalSubject, setGoalSubject] = useState(""); // specific habit to track
   const [goalHabitType, setGoalHabitType] = useState("build"); // build or stop goal
+  // ── Chat state ──
+  const [chatHistory, setChatHistory] = useState([]); // [{role, content, id}]
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatLoaded, setChatLoaded] = useState(false);
 
   // ── Theme ──
   const th = isDark
@@ -561,6 +563,66 @@ const App = () => {
   const deleteLog = async (id) => {
     await supabase.from("habit_logs").delete().eq("id", id);
     fetchLogs();
+  };
+
+  // ── Chat: load history from Supabase ──
+  const fetchChatHistory = async () => {
+    if (!session || chatLoaded) return;
+    const { data, error } = await supabase
+      .from("lambert_conversations")
+      .select("role, content, created_at")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: true })
+      .limit(60);
+    if (error) { console.error(error.message); return; }
+    if (data) {
+      setChatHistory(data.map((m, i) => ({ ...m, id: i })));
+      setChatLoaded(true);
+    }
+  };
+
+  // ── Chat: save a message to Supabase ──
+  const saveChatMessage = async (role, content) => {
+    await supabase.from("lambert_conversations").insert([
+      { user_id: session.user.id, role, content },
+    ]);
+  };
+
+  // ── Chat: send message to Lambert ──
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = { role: "user", content: chatInput.trim(), id: Date.now() };
+    setChatHistory((prev) => [...prev, userMsg]);
+    setChatInput("");
+    setChatLoading(true);
+    await saveChatMessage("user", userMsg.content);
+    try {
+      const res = await fetch("/api/ai-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg.content,
+          history: chatHistory.map(({ role, content }) => ({ role, content })),
+          habits: tasks,
+          efficiency: analytics.efficiency,
+          streak,
+          consistency: deepAnalytics.consistency,
+          winRate: deepAnalytics.winRate,
+        }),
+      });
+      const data = await res.json();
+      const reply = data.reply || "Lambert is unavailable right now.";
+      const assistantMsg = { role: "assistant", content: reply, id: Date.now() + 1 };
+      setChatHistory((prev) => [...prev, assistantMsg]);
+      await saveChatMessage("assistant", reply);
+    } catch {
+      setChatHistory((prev) => [
+        ...prev,
+        { role: "assistant", content: "Connection lost. Try again.", id: Date.now() + 1 },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   const handleAuth = async (e) => {
@@ -886,22 +948,22 @@ const App = () => {
     setAiLoading(true);
     const { efficiency, build, stop, disruptor } = analytics;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/ai-brief", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `You are Lambert, a sharp AI executive coach. Write a crisp 2-sentence tactical briefing (35 words max) for: Efficiency ${efficiency}%, Build ${build}min, Stop ${stop}min, Top disruptor "${disruptor}", Streak ${streak} days, Consistency ${deepAnalytics.consistency}%, Win rate ${deepAnalytics.winRate}%. Be direct. No filler.`,
-            },
-          ],
+          efficiency,
+          build,
+          stop,
+          disruptor,
+          streak,
+          consistency: deepAnalytics.consistency,
+          winRate: deepAnalytics.winRate,
+          habits: tasks, // full raw logs — Lambert needs the detail
         }),
       });
       const data = await res.json();
-      setAiText(data.content?.[0]?.text || "");
+      setAiText(data.text || "");
     } catch {
       setAiText(
         efficiency >= 85
@@ -1244,6 +1306,7 @@ const App = () => {
                 { id: "home", icon: Home, label: "Dashboard" },
                 { id: "analytics", icon: BarChart2, label: "Analytics Hub" },
                 { id: "targets", icon: Target, label: "Goals & Settings" },
+                { id: "chat", icon: BookOpen, label: "Talk to Lambert" },
               ].map((item) => (
                 <div
                   key={item.id}
@@ -2897,6 +2960,145 @@ const App = () => {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+              {/* ════ LAMBERT CHAT ════ */}
+        {activeTab === "chat" && (
+          <div className="fu" style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 180px)" }}>
+            <div style={{ ...card, marginBottom: "12px", padding: "16px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Zap size={16} color="#3b82f6" />
+                <span style={{ fontWeight: "700", fontSize: "1rem", color: th.text }}>
+                  Lambert
+                </span>
+                <span style={{ fontSize: "0.65rem", color: th.textMuted, marginLeft: "auto" }}>
+                  Remembers your history
+                </span>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                paddingBottom: "12px",
+              }}
+              ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}
+              onMouseEnter={() => { if (!chatLoaded) fetchChatHistory(); }}
+            >
+              {chatHistory.length === 0 && !chatLoading && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    color: th.textMuted,
+                    fontSize: "0.82rem",
+                    marginTop: "40px",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <div style={{ fontSize: "1.8rem", marginBottom: "10px" }}>⚡</div>
+                  Lambert is watching your data.
+                  <br />Ask him anything — or brace for honesty.
+                  <br />
+                  <span
+                    style={{ color: "#3b82f6", cursor: "pointer", fontSize: "0.75rem" }}
+                    onClick={fetchChatHistory}
+                  >
+                    Load past conversations
+                  </span>
+                </div>
+              )}
+              {chatHistory.map((msg) => (
+                <div
+                  key={msg.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                  }}
+                >
+                  <div
+                    style={{
+                      maxWidth: "82%",
+                      padding: "12px 16px",
+                      borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                      background: msg.role === "user"
+                        ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
+                        : th.card,
+                      border: msg.role === "user" ? "none" : `1px solid ${th.cardBorder}`,
+                      color: msg.role === "user" ? "#fff" : th.text,
+                      fontSize: "0.88rem",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div
+                    style={{
+                      padding: "12px 18px",
+                      borderRadius: "18px 18px 18px 4px",
+                      background: th.card,
+                      border: `1px solid ${th.cardBorder}`,
+                      color: th.textMuted,
+                      fontSize: "0.82rem",
+                    }}
+                  >
+                    Lambert is thinking...
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
+                placeholder="Ask Lambert anything..."
+                style={{
+                  ...{
+                    width: "100%",
+                    padding: "14px 16px",
+                    borderRadius: "12px",
+                    background: th.inputBg,
+                    color: th.text,
+                    border: `1px solid ${th.inputBdr}`,
+                    fontSize: "0.92rem",
+                    fontFamily: "'Syne',sans-serif",
+                  },
+                  flex: 1,
+                  marginBottom: 0,
+                }}
+              />
+              <button
+                onClick={handleChatSend}
+                disabled={chatLoading || !chatInput.trim()}
+                style={{
+                  background: chatInput.trim() ? "linear-gradient(135deg,#3b82f6,#1d4ed8)" : th.inputBg,
+                  color: chatInput.trim() ? "#fff" : th.textMuted,
+                  border: "none",
+                  borderRadius: "12px",
+                  padding: "0 20px",
+                  fontWeight: "700",
+                  cursor: chatLoading || !chatInput.trim() ? "not-allowed" : "pointer",
+                  fontSize: "0.88rem",
+                  whiteSpace: "nowrap",
+                  fontFamily: "'Syne',sans-serif",
+                }}
+              >
+                Send
+              </button>
             </div>
           </div>
         )}
