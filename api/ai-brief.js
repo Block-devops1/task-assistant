@@ -51,6 +51,36 @@ export default async function handler(req, res) {
     ? Math.floor((Date.now() - lastLogDate.getTime()) / 86400000)
     : null;
 
+  const hoursSinceLastLog = lastLogDate
+    ? Math.round((Date.now() - lastLogDate.getTime()) / 3600000)
+    : null;
+
+  const lastLogTime = lastLogDate
+    ? lastLogDate.toLocaleTimeString("en", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : null;
+
+  // Compute gaps between consecutive logs (sorted newest first already)
+  const sortedLogs = Array.isArray(habits)
+    ? [...habits]
+        .filter((h) => h.created_at)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    : [];
+  const recentGaps = [];
+  for (let i = 0; i < Math.min(sortedLogs.length - 1, 5); i++) {
+    const gapHrs = Math.round(
+      (new Date(sortedLogs[i].created_at) -
+        new Date(sortedLogs[i + 1].created_at)) /
+        3600000,
+    );
+    recentGaps.push(
+      `${gapHrs}h between "${sortedLogs[i + 1].subject}" and "${sortedLogs[i].subject}"`,
+    );
+  }
+
   const topBuild = Object.entries(buildHabits)
     .sort((a, b) => b[1].total - a[1].total)
     .slice(0, 5)
@@ -77,6 +107,9 @@ CURRENT STREAK: ${streak} days
 CONSISTENCY RATE: ${consistency}%
 TOP DISRUPTOR: "${disruptor}"
 DAYS SINCE LAST LOG: ${daysSinceLastLog !== null ? daysSinceLastLog : "unknown"}
+HOURS SINCE LAST LOG: ${hoursSinceLastLog !== null ? hoursSinceLastLog : "unknown"}
+TIME OF LAST LOG: ${lastLogTime || "unknown"}
+RECENT LOG GAPS: ${recentGaps.length ? recentGaps.join("; ") : "not enough data"}
 
 TOP BUILD HABITS: ${topBuild || "none logged"}
 TOP DISRUPTORS: ${topStop || "none logged"}

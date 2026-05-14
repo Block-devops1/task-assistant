@@ -996,6 +996,20 @@ const App = () => {
     }));
   }, [tasks]);
 
+  const stopPieSegments = useMemo(() => {
+    const st = tasks.filter((t) => t.habit_type === "stop");
+    if (!st.length) return [{ name: "No data", value: 1, color: "#1e293b" }];
+    const agg = st.reduce((acc, t) => {
+      acc[t.subject] = (acc[t.subject] || 0) + t.duration;
+      return acc;
+    }, {});
+    return Object.entries(agg).map(([name, value], i) => ({
+      name,
+      value,
+      color: ["#ef4444", "#f97316", "#f43f5e", "#fbbf24", "#dc2626"][i % 5],
+    }));
+  }, [tasks]);
+
   // ── AI Briefing ──
   const fetchAI = useCallback(async () => {
     setAiLoading(true);
@@ -2282,6 +2296,12 @@ const App = () => {
                           new Date(tk.created_at).toLocaleDateString("en", {
                             month: "short",
                             day: "numeric",
+                          }) +
+                          " @ " +
+                          new Date(tk.created_at).toLocaleTimeString("en", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
                           })}
                     </div>
                   </div>
@@ -2768,6 +2788,152 @@ const App = () => {
                     {s.name} <span style={{ opacity: 0.6 }}>({s.value}m)</span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Dual Pie — Habits to Build vs Disruptors */}
+            <div style={card}>
+              <p
+                style={{
+                  margin: "0 0 18px",
+                  fontSize: "0.6rem",
+                  color: th.textMuted,
+                  letterSpacing: "2px",
+                }}
+              >
+                HABITS TO BUILD vs DISRUPTORS
+              </p>
+              <div style={{ display: "flex", gap: "12px" }}>
+                {/* Build pie */}
+                <div style={{ flex: 1 }}>
+                  <p
+                    style={{
+                      fontSize: "0.6rem",
+                      color: "#3b82f6",
+                      letterSpacing: "1px",
+                      margin: "0 0 8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    HABITS TO BUILD
+                  </p>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <PieChart>
+                      <Pie
+                        data={pieSegments}
+                        dataKey="value"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={35}
+                        outerRadius={58}
+                        stroke="none"
+                        paddingAngle={3}
+                      >
+                        {pieSegments.map((e, i) => (
+                          <Cell key={i} fill={e.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={ttip} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "6px",
+                      justifyContent: "center",
+                      marginTop: "6px",
+                    }}
+                  >
+                    {pieSegments.map((s, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontSize: "0.65rem",
+                          color: th.textMuted,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "6px",
+                            height: "6px",
+                            borderRadius: "50%",
+                            background: s.color,
+                          }}
+                        />
+                        {s.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {/* Stop/Disruptor pie */}
+                <div style={{ flex: 1 }}>
+                  <p
+                    style={{
+                      fontSize: "0.6rem",
+                      color: "#ef4444",
+                      letterSpacing: "1px",
+                      margin: "0 0 8px",
+                      textAlign: "center",
+                    }}
+                  >
+                    DISRUPTORS
+                  </p>
+                  <ResponsiveContainer width="100%" height={150}>
+                    <PieChart>
+                      <Pie
+                        data={stopPieSegments}
+                        dataKey="value"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={35}
+                        outerRadius={58}
+                        stroke="none"
+                        paddingAngle={3}
+                      >
+                        {stopPieSegments.map((e, i) => (
+                          <Cell key={i} fill={e.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={ttip} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "6px",
+                      justifyContent: "center",
+                      marginTop: "6px",
+                    }}
+                  >
+                    {stopPieSegments.map((s, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontSize: "0.65rem",
+                          color: th.textMuted,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "6px",
+                            height: "6px",
+                            borderRadius: "50%",
+                            background: s.color,
+                          }}
+                        />
+                        {s.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
