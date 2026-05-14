@@ -1,0 +1,66 @@
+// api/push-subscribe.js — Vercel Serverless Function
+// Saves or removes a user's push subscription to Supabase.
+// Called from the browser after the user grants notification permission.
+//
+// Supabase table needed (run once in SQL editor):
+// ----------------------------------------------------
+// create table push_subscriptions (
+//   id uuid primary key default gen_random_uuid(),
+//   user_id uuid references auth.users not null,
+//   subscription jsonb not null,
+//   reminder_hour int default 20,   -- 8 PM default
+//   reminder_minute int default 0,
+//   timezone text default 'UTC',
+//   created_at timestamptz default now(),
+//   unique(user_id)
+// );
+
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY, // service role — can bypass RLS
+);
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).end();
+
+  const {
+    action,
+    subscription,
+    userId,
+    reminderHour,
+    reminderMinute,
+    timezone,
+  } = req.body;
+  // action: "subscribe" | "unsubscribe"
+
+  if (!userId) return res.status(400).json({ error: "userId required" });
+
+  if (action === "unsubscribe") {
+    const { error } = await supabase
+      .from("push_subscriptions")
+      .delete()
+      .eq("user_id", userId);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ ok: true });
+  }
+
+  // action === "subscribe"
+  if (!subscription)
+    return res.status(400).json({ error: "subscription required" });
+
+  const { error } = await supabase.from("push_subscriptions").upsert(
+    {
+      user_id: userId,
+      subscription,
+      reminder_hour: reminderHour ?? 20,
+      reminder_minute: reminderMinute ?? 0,
+      timezone: timezone || "UTC",
+    },
+    { onConflict: "user_id" },
+  );
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(200).json({ ok: true });
+}

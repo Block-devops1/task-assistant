@@ -438,6 +438,12 @@ const App = () => {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
+  // ── Push notification state ──
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [reminderHour, setReminderHour] = useState(20);
+  const [pushStatus, setPushStatus] = useState("");
 
   // ── Theme ──
   const th = isDark
@@ -499,6 +505,27 @@ const App = () => {
       "https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap";
     link.rel = "stylesheet";
     document.head.appendChild(link);
+
+    // PWA meta tags
+    const metaTheme = document.createElement("meta");
+    metaTheme.name = "theme-color";
+    metaTheme.content = "#020617";
+    document.head.appendChild(metaTheme);
+
+    const metaApple = document.createElement("meta");
+    metaApple.name = "apple-mobile-web-app-capable";
+    metaApple.content = "yes";
+    document.head.appendChild(metaApple);
+
+    const metaAppleStatus = document.createElement("meta");
+    metaAppleStatus.name = "apple-mobile-web-app-status-bar-style";
+    metaAppleStatus.content = "black-translucent";
+    document.head.appendChild(metaAppleStatus);
+
+    const linkManifest = document.createElement("link");
+    linkManifest.rel = "manifest";
+    linkManifest.href = "/manifest.json";
+    document.head.appendChild(linkManifest);
     const style = document.createElement("style");
     style.id = "lambert-css";
     style.textContent = `
@@ -537,6 +564,21 @@ const App = () => {
   useEffect(() => {
     document.body.style.background = th.bg;
   }, [isDark]); // eslint-disable-line
+
+  // ── Service Worker + Push setup ──
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    setPushSupported(true);
+
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then(async (reg) => {
+        // Check if already subscribed
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) setPushSubscribed(true);
+      })
+      .catch((err) => console.warn("SW registration failed:", err));
+  }, []);
 
   // ── Auth ──
   useEffect(() => {
@@ -611,7 +653,6 @@ const App = () => {
           streak,
           consistency: deepAnalytics.consistency,
           winRate: deepAnalytics.winRate,
-          currentTime: new Date().toISOString(),
         }),
       });
       const data = await res.json();
@@ -951,22 +992,7 @@ const App = () => {
     return Object.entries(agg).map(([name, value], i) => ({
       name,
       value,
-      color: ["#3b82f6", "#10b981", "#8b5cf6", "#06b6d4", "#22d3ee"][i % 5],
-    }));
-  }, [tasks]);
-
-  // ── Pie segments (stop/break habits) ──
-  const stopPieSegments = useMemo(() => {
-    const st = tasks.filter((t) => t.habit_type === "stop");
-    if (!st.length) return [{ name: "No data", value: 1, color: "#1e293b" }];
-    const agg = st.reduce((acc, t) => {
-      acc[t.subject] = (acc[t.subject] || 0) + t.duration;
-      return acc;
-    }, {});
-    return Object.entries(agg).map(([name, value], i) => ({
-      name,
-      value,
-      color: ["#ef4444", "#f97316", "#eab308", "#dc2626", "#fb923c"][i % 5],
+      color: ["#3b82f6", "#10b981", "#8b5cf6", "#fbbf24", "#f43f5e"][i % 5],
     }));
   }, [tasks]);
 
@@ -987,7 +1013,6 @@ const App = () => {
           consistency: deepAnalytics.consistency,
           winRate: deepAnalytics.winRate,
           habits: tasks, // full raw logs — Lambert needs the detail
-          currentTime: new Date().toISOString(),
         }),
       });
       const data = await res.json();
@@ -1012,6 +1037,91 @@ const App = () => {
   useEffect(() => {
     if (session && tasks.length > 0) fetchAI();
   }, [tasks.length, session]); // eslint-disable-line
+
+  // ── Push: subscribe ──
+  const handlePushSubscribe = async () => {
+    if (!session || pushLoading) return;
+    setPushLoading(true);
+    setPushStatus("");
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushStatus(
+          "Permission denied. Enable notifications in browser settings.",
+        );
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(
+          process.env.REACT_APP_VAPID_PUBLIC_KEY || "",
+        ),
+      });
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const res = await fetch("/api/push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "subscribe",
+          subscription: sub.toJSON(),
+          userId: session.user.id,
+          reminderHour,
+          reminderMinute: 0,
+          timezone: tz,
+        }),
+      });
+      if (res.ok) {
+        setPushSubscribed(true);
+        setPushStatus(
+          "✓ Notifications enabled! Lambert will keep you on track.",
+        );
+      } else {
+        setPushStatus("Failed to save subscription. Try again.");
+      }
+    } catch (err) {
+      console.error(err);
+      setPushStatus("Something went wrong. Check VAPID key is set.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  // ── Push: unsubscribe ──
+  const handlePushUnsubscribe = async () => {
+    if (!session || pushLoading) return;
+    setPushLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await sub.unsubscribe();
+      await fetch("/api/push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "unsubscribe",
+          userId: session.user.id,
+        }),
+      });
+      setPushSubscribed(false);
+      setPushStatus("Notifications disabled.");
+    } catch (err) {
+      console.error(err);
+      setPushStatus("Failed to unsubscribe.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  // ── VAPID key helper ──
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  }
 
   const handleLogHabit = async () => {
     if (!subject || !duration) return;
@@ -2172,12 +2282,6 @@ const App = () => {
                           new Date(tk.created_at).toLocaleDateString("en", {
                             month: "short",
                             day: "numeric",
-                          }) +
-                          " · " +
-                          new Date(tk.created_at).toLocaleTimeString("en", {
-                            hour: "numeric",
-                            minute: "2-digit",
-                            hour12: true,
                           })}
                     </div>
                   </div>
@@ -2602,197 +2706,68 @@ const App = () => {
               </div>
             </div>
 
-            {/* Dual Pie: Build to Build + Habits to Break */}
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              {/* Build Habits Pie */}
-              <div style={{ ...card, flex: 1, minWidth: "240px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "7px",
-                    marginBottom: "14px",
-                  }}
-                >
+            {/* Pie */}
+            <div style={card}>
+              <p
+                style={{
+                  margin: "0 0 18px",
+                  fontSize: "0.6rem",
+                  color: th.textMuted,
+                  letterSpacing: "2px",
+                }}
+              >
+                SUBJECT COMPOSITION (ALL TIME)
+              </p>
+              <ResponsiveContainer width="100%" height={190}>
+                <PieChart>
+                  <Pie
+                    data={pieSegments}
+                    dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={78}
+                    stroke="none"
+                    paddingAngle={4}
+                  >
+                    {pieSegments.map((e, i) => (
+                      <Cell key={i} fill={e.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={ttip} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  justifyContent: "center",
+                  marginTop: "8px",
+                }}
+              >
+                {pieSegments.map((s, i) => (
                   <div
+                    key={i}
                     style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: "#10b981",
-                    }}
-                  />
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.6rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "5px",
+                      fontSize: "0.7rem",
                       color: th.textMuted,
-                      letterSpacing: "2px",
                     }}
                   >
-                    HABITS TO BUILD
-                  </p>
-                </div>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie
-                      data={pieSegments}
-                      dataKey="value"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={42}
-                      outerRadius={64}
-                      stroke="none"
-                      paddingAngle={4}
-                    >
-                      {pieSegments.map((e, i) => (
-                        <Cell key={i} fill={e.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={ttip}
-                      formatter={(v) => [`${v}m`, "Time"]}
+                    <div
+                      style={{
+                        width: "7px",
+                        height: "7px",
+                        borderRadius: "50%",
+                        background: s.color,
+                      }}
                     />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "6px",
-                    justifyContent: "center",
-                    marginTop: "8px",
-                  }}
-                >
-                  {pieSegments.map((s, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        fontSize: "0.65rem",
-                        color: th.textMuted,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "6px",
-                          height: "6px",
-                          borderRadius: "50%",
-                          background: s.color,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span>{s.name}</span>
-                      <span style={{ opacity: 0.5 }}>({s.value}m)</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Break Habits Pie */}
-              <div style={{ ...card, flex: 1, minWidth: "240px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "7px",
-                    marginBottom: "14px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: "#ef4444",
-                    }}
-                  />
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.6rem",
-                      color: th.textMuted,
-                      letterSpacing: "2px",
-                    }}
-                  >
-                    HABITS TO BREAK
-                  </p>
-                </div>
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie
-                      data={stopPieSegments}
-                      dataKey="value"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={42}
-                      outerRadius={64}
-                      stroke="none"
-                      paddingAngle={4}
-                    >
-                      {stopPieSegments.map((e, i) => (
-                        <Cell key={i} fill={e.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={ttip}
-                      formatter={(v) => [`${v}m`, "Time lost"]}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "6px",
-                    justifyContent: "center",
-                    marginTop: "8px",
-                  }}
-                >
-                  {stopPieSegments.map((s, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        fontSize: "0.65rem",
-                        color: th.textMuted,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "6px",
-                          height: "6px",
-                          borderRadius: "50%",
-                          background: s.color,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span>{s.name}</span>
-                      <span style={{ opacity: 0.5 }}>({s.value}m)</span>
-                    </div>
-                  ))}
-                </div>
-                {stopPieSegments.length > 0 &&
-                  stopPieSegments[0].name !== "No data" && (
-                    <div
-                      style={{
-                        marginTop: "12px",
-                        padding: "8px 12px",
-                        background: "rgba(239,68,68,0.07)",
-                        border: "1px solid rgba(239,68,68,0.18)",
-                        borderRadius: "10px",
-                        fontSize: "0.68rem",
-                        color: "#f87171",
-                        textAlign: "center",
-                      }}
-                    >
-                      ⚠ Awareness is the first step to elimination
-                    </div>
-                  )}
+                    {s.name} <span style={{ opacity: 0.6 }}>({s.value}m)</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -3133,10 +3108,227 @@ const App = () => {
                 ))}
               </div>
             </div>
+            {/* ── Notifications & Reminders ── */}
+            <div style={{ ...card, marginTop: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "16px",
+                }}
+              >
+                <span style={{ fontSize: "1.1rem" }}>🔔</span>
+                <span
+                  style={{
+                    fontWeight: "700",
+                    fontSize: "1.05rem",
+                    color: th.text,
+                  }}
+                >
+                  Notifications & Reminders
+                </span>
+              </div>
+
+              {!pushSupported ? (
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: th.textMuted,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Push notifications are not supported on this browser. Try
+                  Chrome or Edge on desktop, or add to Home Screen on iOS
+                  Safari.
+                </p>
+              ) : (
+                <>
+                  <p
+                    style={{
+                      fontSize: "0.8rem",
+                      color: th.textMuted,
+                      lineHeight: 1.6,
+                      marginBottom: "18px",
+                    }}
+                  >
+                    Lambert will alert you if you haven't logged by your
+                    reminder time, warn you when a streak is at risk, and send a
+                    weekly report every Sunday.
+                  </p>
+
+                  {/* Reminder time picker */}
+                  <label
+                    style={{
+                      fontSize: "0.6rem",
+                      color: th.textMuted,
+                      letterSpacing: "2px",
+                      display: "block",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    DAILY REMINDER TIME
+                  </label>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "6px",
+                      flexWrap: "wrap",
+                      marginBottom: "18px",
+                    }}
+                  >
+                    {[
+                      [7, "7 AM"],
+                      [9, "9 AM"],
+                      [12, "12 PM"],
+                      [17, "5 PM"],
+                      [19, "7 PM"],
+                      [20, "8 PM"],
+                      [21, "9 PM"],
+                      [22, "10 PM"],
+                    ].map(([h, label]) => (
+                      <button
+                        key={h}
+                        onClick={() => setReminderHour(h)}
+                        style={{
+                          padding: "8px 14px",
+                          borderRadius: "10px",
+                          background:
+                            reminderHour === h
+                              ? "rgba(59,130,246,.18)"
+                              : th.quickBtn,
+                          border: `1px solid ${reminderHour === h ? "rgba(59,130,246,.5)" : "transparent"}`,
+                          color: reminderHour === h ? "#3b82f6" : th.textMuted,
+                          cursor: "pointer",
+                          fontSize: "0.72rem",
+                          fontWeight: "700",
+                          transition: "all .2s",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Subscribe / Unsubscribe button */}
+                  <button
+                    onClick={
+                      pushSubscribed
+                        ? handlePushUnsubscribe
+                        : handlePushSubscribe
+                    }
+                    disabled={pushLoading}
+                    style={{
+                      width: "100%",
+                      padding: "14px",
+                      borderRadius: "14px",
+                      border: "none",
+                      fontWeight: "700",
+                      fontSize: "0.9rem",
+                      cursor: pushLoading ? "not-allowed" : "pointer",
+                      background: pushSubscribed
+                        ? "rgba(239,68,68,0.12)"
+                        : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                      color: pushSubscribed ? "#ef4444" : "#fff",
+                      border: pushSubscribed
+                        ? "1px solid rgba(239,68,68,0.3)"
+                        : "none",
+                      boxShadow: pushSubscribed
+                        ? "none"
+                        : "0 4px 20px rgba(59,130,246,.25)",
+                      transition: "all .25s",
+                      fontFamily: "'Syne',sans-serif",
+                    }}
+                  >
+                    {pushLoading
+                      ? "Working..."
+                      : pushSubscribed
+                        ? "Disable Notifications"
+                        : "Enable Push Notifications"}
+                  </button>
+
+                  {/* Status feedback */}
+                  {pushStatus && (
+                    <p
+                      style={{
+                        marginTop: "10px",
+                        fontSize: "0.75rem",
+                        color: pushStatus.startsWith("✓")
+                          ? "#10b981"
+                          : "#f87171",
+                        textAlign: "center",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {pushStatus}
+                    </p>
+                  )}
+
+                  {/* What you'll get */}
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "12px 14px",
+                      background: th.insightBg,
+                      borderRadius: "12px",
+                      border: `1px solid ${th.cardBorder}`,
+                    }}
+                  >
+                    <p
+                      style={{
+                        margin: "0 0 8px",
+                        fontSize: "0.6rem",
+                        color: th.textMuted,
+                        letterSpacing: "1.5px",
+                      }}
+                    >
+                      YOU'LL RECEIVE
+                    </p>
+                    {[
+                      ["📝 Daily reminder", "if no log by your chosen time"],
+                      ["🔥 Streak alert", "when your streak is in danger"],
+                      [
+                        "📊 Weekly report",
+                        "every Sunday — Lambert's verdict on your week",
+                      ],
+                    ].map(([title, desc]) => (
+                      <div
+                        key={title}
+                        style={{
+                          display: "flex",
+                          gap: "10px",
+                          alignItems: "flex-start",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        <span style={{ fontSize: "0.85rem", flexShrink: 0 }}>
+                          {title.split(" ")[0]}
+                        </span>
+                        <div>
+                          <span
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: "700",
+                              color: th.text,
+                            }}
+                          >
+                            {title.slice(2)}
+                          </span>
+                          <span
+                            style={{ fontSize: "0.75rem", color: th.textMuted }}
+                          >
+                            {" "}
+                            — {desc}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
-
-        {/* ════ LAMBERT CHAT ════ */}
         {activeTab === "chat" && (
           <div
             className="fu"
