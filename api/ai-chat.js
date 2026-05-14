@@ -59,6 +59,43 @@ export default async function handler(req, res) {
     .map(([name, d]) => `${name}: ${d.total}min lost (${d.count}x)`)
     .join(", ");
 
+  // ── Time of last log + gaps between recent logs ──
+  let lastLogDate = null;
+  if (Array.isArray(habits)) {
+    habits.forEach((h) => {
+      if (h.created_at) {
+        const d = new Date(h.created_at);
+        if (!lastLogDate || d > lastLogDate) lastLogDate = d;
+      }
+    });
+  }
+  const hoursSinceLastLog = lastLogDate
+    ? Math.round((Date.now() - lastLogDate.getTime()) / 3600000)
+    : null;
+  const lastLogTime = lastLogDate
+    ? lastLogDate.toLocaleTimeString("en", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : null;
+  const sortedLogs = Array.isArray(habits)
+    ? [...habits]
+        .filter((h) => h.created_at)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    : [];
+  const recentGaps = [];
+  for (let i = 0; i < Math.min(sortedLogs.length - 1, 5); i++) {
+    const gapHrs = Math.round(
+      (new Date(sortedLogs[i].created_at) -
+        new Date(sortedLogs[i + 1].created_at)) /
+        3600000,
+    );
+    recentGaps.push(
+      `${gapHrs}h gap between "${sortedLogs[i + 1].subject}" → "${sortedLogs[i].subject}"`,
+    );
+  }
+
   // ── Format current time for Lambert ──
   const nowStr = currentTime
     ? new Date(currentTime).toLocaleString("en", {
@@ -83,6 +120,8 @@ CURRENT USER STATS:
 - Streak: ${streak} days
 - Consistency: ${consistency}%
 - Win Rate: ${winRate}%
+- Last log: ${lastLogTime || "unknown"} (${hoursSinceLastLog !== null ? hoursSinceLastLog + "h ago" : "unknown"})
+- Recent log gaps: ${recentGaps.length ? recentGaps.join("; ") : "not enough data"}
 - Top build habits: ${topBuild || "none yet"}
 - Top disruptors: ${topStop || "none yet"}
 
