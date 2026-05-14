@@ -3222,7 +3222,6 @@ const App = () => {
                       width: "100%",
                       padding: "14px",
                       borderRadius: "14px",
-                      border: "none",
                       fontWeight: "700",
                       fontSize: "0.9rem",
                       cursor: pushLoading ? "not-allowed" : "pointer",
