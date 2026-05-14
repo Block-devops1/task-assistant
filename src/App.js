@@ -611,6 +611,7 @@ const App = () => {
           streak,
           consistency: deepAnalytics.consistency,
           winRate: deepAnalytics.winRate,
+          currentTime: new Date().toISOString(),
         }),
       });
       const data = await res.json();
@@ -950,7 +951,22 @@ const App = () => {
     return Object.entries(agg).map(([name, value], i) => ({
       name,
       value,
-      color: ["#3b82f6", "#10b981", "#8b5cf6", "#fbbf24", "#f43f5e"][i % 5],
+      color: ["#3b82f6", "#10b981", "#8b5cf6", "#06b6d4", "#22d3ee"][i % 5],
+    }));
+  }, [tasks]);
+
+  // ── Pie segments (stop/break habits) ──
+  const stopPieSegments = useMemo(() => {
+    const st = tasks.filter((t) => t.habit_type === "stop");
+    if (!st.length) return [{ name: "No data", value: 1, color: "#1e293b" }];
+    const agg = st.reduce((acc, t) => {
+      acc[t.subject] = (acc[t.subject] || 0) + t.duration;
+      return acc;
+    }, {});
+    return Object.entries(agg).map(([name, value], i) => ({
+      name,
+      value,
+      color: ["#ef4444", "#f97316", "#eab308", "#dc2626", "#fb923c"][i % 5],
     }));
   }, [tasks]);
 
@@ -971,6 +987,7 @@ const App = () => {
           consistency: deepAnalytics.consistency,
           winRate: deepAnalytics.winRate,
           habits: tasks, // full raw logs — Lambert needs the detail
+          currentTime: new Date().toISOString(),
         }),
       });
       const data = await res.json();
@@ -2155,6 +2172,12 @@ const App = () => {
                           new Date(tk.created_at).toLocaleDateString("en", {
                             month: "short",
                             day: "numeric",
+                          }) +
+                          " · " +
+                          new Date(tk.created_at).toLocaleTimeString("en", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
                           })}
                     </div>
                   </div>
@@ -2579,68 +2602,197 @@ const App = () => {
               </div>
             </div>
 
-            {/* Pie */}
-            <div style={card}>
-              <p
-                style={{
-                  margin: "0 0 18px",
-                  fontSize: "0.6rem",
-                  color: th.textMuted,
-                  letterSpacing: "2px",
-                }}
-              >
-                SUBJECT COMPOSITION (ALL TIME)
-              </p>
-              <ResponsiveContainer width="100%" height={190}>
-                <PieChart>
-                  <Pie
-                    data={pieSegments}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={78}
-                    stroke="none"
-                    paddingAngle={4}
-                  >
-                    {pieSegments.map((e, i) => (
-                      <Cell key={i} fill={e.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={ttip} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "8px",
-                  justifyContent: "center",
-                  marginTop: "8px",
-                }}
-              >
-                {pieSegments.map((s, i) => (
+            {/* Dual Pie: Build to Build + Habits to Break */}
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              {/* Build Habits Pie */}
+              <div style={{ ...card, flex: 1, minWidth: "240px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    marginBottom: "14px",
+                  }}
+                >
                   <div
-                    key={i}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "5px",
-                      fontSize: "0.7rem",
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: "#10b981",
+                    }}
+                  />
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "0.6rem",
                       color: th.textMuted,
+                      letterSpacing: "2px",
                     }}
                   >
+                    HABITS TO BUILD
+                  </p>
+                </div>
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie
+                      data={pieSegments}
+                      dataKey="value"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={42}
+                      outerRadius={64}
+                      stroke="none"
+                      paddingAngle={4}
+                    >
+                      {pieSegments.map((e, i) => (
+                        <Cell key={i} fill={e.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={ttip}
+                      formatter={(v) => [`${v}m`, "Time"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                    justifyContent: "center",
+                    marginTop: "8px",
+                  }}
+                >
+                  {pieSegments.map((s, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        fontSize: "0.65rem",
+                        color: th.textMuted,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "6px",
+                          height: "6px",
+                          borderRadius: "50%",
+                          background: s.color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span>{s.name}</span>
+                      <span style={{ opacity: 0.5 }}>({s.value}m)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Break Habits Pie */}
+              <div style={{ ...card, flex: 1, minWidth: "240px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: "#ef4444",
+                    }}
+                  />
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "0.6rem",
+                      color: th.textMuted,
+                      letterSpacing: "2px",
+                    }}
+                  >
+                    HABITS TO BREAK
+                  </p>
+                </div>
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie
+                      data={stopPieSegments}
+                      dataKey="value"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={42}
+                      outerRadius={64}
+                      stroke="none"
+                      paddingAngle={4}
+                    >
+                      {stopPieSegments.map((e, i) => (
+                        <Cell key={i} fill={e.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={ttip}
+                      formatter={(v) => [`${v}m`, "Time lost"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                    justifyContent: "center",
+                    marginTop: "8px",
+                  }}
+                >
+                  {stopPieSegments.map((s, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        fontSize: "0.65rem",
+                        color: th.textMuted,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "6px",
+                          height: "6px",
+                          borderRadius: "50%",
+                          background: s.color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span>{s.name}</span>
+                      <span style={{ opacity: 0.5 }}>({s.value}m)</span>
+                    </div>
+                  ))}
+                </div>
+                {stopPieSegments.length > 0 &&
+                  stopPieSegments[0].name !== "No data" && (
                     <div
                       style={{
-                        width: "7px",
-                        height: "7px",
-                        borderRadius: "50%",
-                        background: s.color,
+                        marginTop: "12px",
+                        padding: "8px 12px",
+                        background: "rgba(239,68,68,0.07)",
+                        border: "1px solid rgba(239,68,68,0.18)",
+                        borderRadius: "10px",
+                        fontSize: "0.68rem",
+                        color: "#f87171",
+                        textAlign: "center",
                       }}
-                    />
-                    {s.name} <span style={{ opacity: 0.6 }}>({s.value}m)</span>
-                  </div>
-                ))}
+                    >
+                      ⚠ Awareness is the first step to elimination
+                    </div>
+                  )}
               </div>
             </div>
           </div>

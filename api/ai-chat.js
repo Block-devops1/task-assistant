@@ -16,6 +16,7 @@ export default async function handler(req, res) {
     streak,
     consistency,
     winRate,
+    currentTime, // ISO timestamp of when the user is chatting
   } = req.body;
 
   const apiKey = process.env.GROQ_API_KEY;
@@ -58,10 +59,24 @@ export default async function handler(req, res) {
     .map(([name, d]) => `${name}: ${d.total}min lost (${d.count}x)`)
     .join(", ");
 
+  // ── Format current time for Lambert ──
+  const nowStr = currentTime
+    ? new Date(currentTime).toLocaleString("en", {
+        weekday: "long",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+        timeZoneName: "short",
+      })
+    : "unknown time";
+
   // ── System prompt — Lambert's full character + user's data ──
   const systemPrompt = `You are Lambert — a sharp, direct, brutally honest AI performance coach built into the user's habit tracker. You have a dry wit and you roast when the data earns it, but every roast has a coaching point behind it. You are not a therapist. You are not a cheerleader. You are a results-driven coach who knows the user's data inside out.
 
 You remember past conversations with this user (provided in the message history). Reference them when relevant — if they said they'd fix something and haven't, call it out.
+
+CURRENT TIME: ${nowStr}
+Use this to be time-aware. If they're logging habits at 2 AM, call it out. If they're checking in early morning, acknowledge it. If they mention "today" or "tonight", you know exactly when that is.
 
 CURRENT USER STATS:
 - Efficiency: ${efficiency}%
