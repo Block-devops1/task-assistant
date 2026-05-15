@@ -614,14 +614,15 @@ const App = () => {
       .from("lambert_conversations")
       .select("role, content, created_at")
       .eq("user_id", session.user.id)
-      .order("created_at", { ascending: true })
-      .limit(60);
+      .order("created_at", { ascending: false })
+      .limit(100);
     if (error) {
       console.error(error.message);
       return;
     }
     if (data) {
-      setChatHistory(data.map((m, i) => ({ ...m, id: i })));
+      const sorted = [...data].reverse();
+      setChatHistory(sorted.map((m, i) => ({ ...m, id: i })));
       setChatLoaded(true);
     }
   };
