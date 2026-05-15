@@ -3192,6 +3192,88 @@ const App = () => {
                   </div>
                 ))}
               </div>
+
+              <button
+                onClick={async () => {
+                  if (!goalText.trim()) return;
+                  await saveGoal(goalText.trim());
+                  alert("Goal saved! Lambert will now track it.");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  borderRadius: "12px",
+                  background:
+                    goalHabitType === "build"
+                      ? "linear-gradient(135deg,#10b981,#059669)"
+                      : "linear-gradient(135deg,#ef4444,#dc2626)",
+                  color: "#fff",
+                  fontWeight: "700",
+                  fontSize: "0.95rem",
+                  border: "none",
+                  cursor: goalText.trim() ? "pointer" : "not-allowed",
+                  opacity: goalText.trim() ? 1 : 0.5,
+                  fontFamily: "'Syne',sans-serif",
+                  letterSpacing: "0.5px",
+                  transition: "all .2s",
+                }}
+              >
+                {goalHabitType === "build"
+                  ? "🚀 Set Build Goal"
+                  : "⛔ Set Stop Goal"}
+              </button>
+
+              {goals.length > 0 && (
+                <div style={{ marginTop: "16px" }}>
+                  <p
+                    style={{
+                      fontSize: "0.6rem",
+                      color: th.textMuted,
+                      letterSpacing: "2px",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    ACTIVE GOALS
+                  </p>
+                  {goals.map((g, i) => (
+                    <div
+                      key={g.id || i}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        background: th.selectBg,
+                        border: `1px solid ${th.cardBorder}`,
+                        marginBottom: "8px",
+                        fontSize: "0.85rem",
+                        color: th.text,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <span>{g.goal}</span>
+                      <span
+                        onClick={async () => {
+                          await supabase
+                            .from("lambert_goals")
+                            .update({ is_active: false })
+                            .eq("id", g.id);
+                          fetchGoals();
+                        }}
+                        style={{
+                          cursor: "pointer",
+                          color: th.textMuted,
+                          fontSize: "0.75rem",
+                          flexShrink: 0,
+                        }}
+                      >
+                        ✕ dismiss
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* ── Daily Time Target ── */}
