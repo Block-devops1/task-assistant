@@ -440,6 +440,8 @@ const App = () => {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
+  const [goals, setGoals] = useState([]);
+  const [weeklyChallenge, setWeeklyChallenge] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   // ── Push notification state ──
   const [pushSupported, setPushSupported] = useState(false);
@@ -630,10 +632,70 @@ const App = () => {
     }
   };
 
+  // ── Goals: fetch saved goals ──
+  const fetchGoals = async () => {
+    if (!session) return;
+    const { data } = await supabase
+      .from("lambert_goals")
+      .select("goal, id")
+      .eq("user_id", session.user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (data) setGoals(data);
+  };
+
+  const saveGoal = async (goalText) => {
+    if (!session || !goalText) return;
+    await supabase.from("lambert_goals").insert([
+      {
+        user_id: session.user.id,
+        goal: goalText,
+        is_active: true,
+      },
+    ]);
+    fetchGoals();
+  };
+
+  // ── Weekly Challenge: fetch or note absence ──
+  const fetchWeeklyChallenge = async () => {
+    if (!session) return;
+    const monday = new Date();
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const weekStart = monday.toISOString().split("T")[0];
+    const { data } = await supabase
+      .from("lambert_challenges")
+      .select("challenge")
+      .eq("user_id", session.user.id)
+      .eq("week_start", weekStart)
+      .maybeSingle();
+    if (data) setWeeklyChallenge(data.challenge);
+  };
+
+  const saveWeeklyChallenge = async (challengeText) => {
+    if (!session || !challengeText) return;
+    const monday = new Date();
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+    const weekStart = monday.toISOString().split("T")[0];
+    await supabase.from("lambert_challenges").upsert(
+      [
+        {
+          user_id: session.user.id,
+          challenge: challengeText,
+          week_start: weekStart,
+        },
+      ],
+      { onConflict: "user_id,week_start" },
+    );
+    setWeeklyChallenge(challengeText);
+  };
+
   // Auto-load chat history when session is available (fixes mobile where onMouseEnter never fires)
   useEffect(() => {
     if (session && !chatLoaded) {
       fetchChatHistory();
+      fetchGoals();
+      fetchWeeklyChallenge();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
@@ -646,6 +708,51 @@ const App = () => {
   };
 
   // ── Chat: send message to Lambert ──
+  // ── Escalation level ──
+  const escalationLevel = useMemo(() => {
+    const s = streak || 0;
+    const e = analytics.efficiency || 0;
+    if (s === 0 || e < 30) return 3;
+    if (s <= 2 || e < 50) return 2;
+    if (s <= 6 || e < 70) return 1;
+    return 0;
+  }, [streak, analytics.efficiency]);
+
+  // ── Progress predictions ──
+  const predictions = useMemo(() => {
+    if (!tasks || tasks.length < 5) return null;
+    const now = Date.now();
+    const last7 = tasks.filter(
+      (t) => now - new Date(t.created_at).getTime() < 7 * 86400000,
+    );
+    const prev7 = tasks.filter((t) => {
+      const age = now - new Date(t.created_at).getTime();
+      return age >= 7 * 86400000 && age < 14 * 86400000;
+    });
+    const buildLast = last7.filter((t) => t.habit_type === "continue").length;
+    const buildPrev = prev7.filter((t) => t.habit_type === "continue").length;
+    const effTrend =
+      buildLast > buildPrev
+        ? "improving"
+        : buildLast < buildPrev
+          ? "declining"
+          : "flat";
+    const conRate = deepAnalytics.consistency || 0;
+    const daysTo80 =
+      conRate >= 80
+        ? "already there"
+        : conRate === 0
+          ? "unknown"
+          : `~${Math.ceil((80 - conRate) / Math.max(conRate / 30, 0.1))} days`;
+    return {
+      efficiencyTrend: effTrend,
+      consistencyTrend:
+        conRate >= 70 ? "on track" : conRate >= 40 ? "needs work" : "at risk",
+      projection: `At current rate, 80% consistency in ${daysTo80}`,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, deepAnalytics.consistency]);
+
   const handleChatSend = async () => {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = { role: "user", content: chatInput.trim(), id: Date.now() };
@@ -672,10 +779,28 @@ const App = () => {
           streak,
           consistency: deepAnalytics.consistency,
           winRate: deepAnalytics.winRate,
+          goals,
+          weeklyChallenge,
+          escalationLevel,
+          predictions,
         }),
       });
       const data = await res.json();
-      const reply = data.reply || "Lambert is unavailable right now.";
+      let reply = data.reply || "Lambert is unavailable right now.";
+
+      // Extract and save goal if Lambert detected one
+      const goalMatch = reply.match(/<<GOAL:\s*(.+?)>>/i);
+      if (goalMatch) {
+        saveGoal(goalMatch[1].trim());
+        reply = reply.replace(/<<GOAL:\s*.+?>>/i, "").trim();
+      }
+
+      // Extract and save weekly challenge if Lambert set one
+      const challengeMatch = reply.match(/<<CHALLENGE:\s*(.+?)>>/i);
+      if (challengeMatch) {
+        saveWeeklyChallenge(challengeMatch[1].trim());
+        reply = reply.replace(/<<CHALLENGE:\s*.+?>>/i, "").trim();
+      }
       const assistantMsg = {
         role: "assistant",
         content: reply,
@@ -1612,7 +1737,11 @@ const App = () => {
 
       {/* ── CONTENT ── */}
       <div
-        style={{ maxWidth: "820px", margin: "0 auto", padding: "0 18px 100px" }}
+        style={{
+          maxWidth: "820px",
+          margin: "0 auto",
+          padding: activeTab === "chat" ? "0 18px 0" : "0 18px 100px",
+        }}
       >
         <header
           style={{
