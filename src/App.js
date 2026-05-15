@@ -27,6 +27,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Star,
+  Copy,
+  Check,
 } from "lucide-react";
 import {
   XAxis,
@@ -438,6 +440,7 @@ const App = () => {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
   // ── Push notification state ──
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
@@ -648,6 +651,13 @@ const App = () => {
     const userMsg = { role: "user", content: chatInput.trim(), id: Date.now() };
     setChatHistory((prev) => [...prev, userMsg]);
     setChatInput("");
+    // Reset textarea height after send
+    const ta = document.querySelector(
+      "textarea[placeholder='Ask Lambert anything...']",
+    );
+    if (ta) {
+      ta.style.height = "48px";
+    }
     setChatLoading(true);
     await saveChatMessage("user", userMsg.content);
     try {
@@ -3507,7 +3517,8 @@ const App = () => {
             style={{
               display: "flex",
               flexDirection: "column",
-              height: "calc(100vh - 180px)",
+              height: "calc(100vh - 160px - env(safe-area-inset-bottom, 0px))",
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
             }}
           >
             <div
@@ -3547,6 +3558,7 @@ const App = () => {
                 flexDirection: "column",
                 gap: "12px",
                 paddingBottom: "12px",
+                justifyContent: "flex-end",
               }}
               ref={(el) => {
                 if (el) el.scrollTop = el.scrollHeight;
@@ -3596,25 +3608,66 @@ const App = () => {
                   <div
                     style={{
                       maxWidth: "82%",
-                      padding: "12px 16px",
-                      borderRadius:
-                        msg.role === "user"
-                          ? "18px 18px 4px 18px"
-                          : "18px 18px 18px 4px",
-                      background:
-                        msg.role === "user"
-                          ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
-                          : th.card,
-                      border:
-                        msg.role === "user"
-                          ? "none"
-                          : `1px solid ${th.cardBorder}`,
-                      color: msg.role === "user" ? "#fff" : th.text,
-                      fontSize: "0.88rem",
-                      lineHeight: 1.6,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px",
                     }}
                   >
-                    {msg.content}
+                    <div
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius:
+                          msg.role === "user"
+                            ? "18px 18px 4px 18px"
+                            : "18px 18px 18px 4px",
+                        background:
+                          msg.role === "user"
+                            ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
+                            : th.card,
+                        border:
+                          msg.role === "user"
+                            ? "none"
+                            : `1px solid ${th.cardBorder}`,
+                        color: msg.role === "user" ? "#fff" : th.text,
+                        fontSize: "0.88rem",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {msg.content}
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(msg.content);
+                        setCopiedId(msg.id);
+                        setTimeout(() => setCopiedId(null), 2000);
+                      }}
+                      style={{
+                        alignSelf:
+                          msg.role === "user" ? "flex-end" : "flex-start",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: copiedId === msg.id ? "#10b981" : th.textMuted,
+                        fontSize: "0.65rem",
+                        padding: "2px 4px",
+                        borderRadius: "6px",
+                        fontFamily: "'Syne',sans-serif",
+                        transition: "color 0.2s",
+                      }}
+                    >
+                      {copiedId === msg.id ? (
+                        <>
+                          <Check size={11} /> Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={11} /> Copy
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -3637,14 +3690,39 @@ const App = () => {
             </div>
 
             {/* Input */}
-            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-              <input
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                marginTop: "12px",
+                paddingBottom: "env(safe-area-inset-bottom, 12px)",
+              }}
+            >
+              <textarea
                 value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && !e.shiftKey && handleChatSend()
-                }
+                onChange={(e) => {
+                  setChatInput(e.target.value);
+                  e.target.style.height = "auto";
+                  e.target.style.height =
+                    Math.min(e.target.scrollHeight, 120) + "px";
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleChatSend();
+                  }
+                }}
+                onPaste={(e) => {
+                  setTimeout(() => {
+                    const el = e.target;
+                    el.selectionStart = el.value.length;
+                    el.selectionEnd = el.value.length;
+                    el.style.height = "auto";
+                    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+                  }, 0);
+                }}
                 placeholder="Ask Lambert anything..."
+                rows={1}
                 style={{
                   width: "100%",
                   padding: "14px 16px",
@@ -3656,6 +3734,11 @@ const App = () => {
                   fontFamily: "'Syne',sans-serif",
                   flex: 1,
                   marginBottom: 0,
+                  resize: "none",
+                  minHeight: "48px",
+                  maxHeight: "120px",
+                  overflowY: "auto",
+                  lineHeight: 1.5,
                 }}
               />
               <button
