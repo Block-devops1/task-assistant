@@ -3517,8 +3517,7 @@ const App = () => {
             style={{
               display: "flex",
               flexDirection: "column",
-              height: "calc(100vh - 160px - env(safe-area-inset-bottom, 0px))",
-              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+              height: "calc(100vh - 160px)",
             }}
           >
             <div
@@ -3558,7 +3557,6 @@ const App = () => {
                 flexDirection: "column",
                 gap: "12px",
                 paddingBottom: "12px",
-                justifyContent: "flex-end",
               }}
               ref={(el) => {
                 if (el) el.scrollTop = el.scrollHeight;
