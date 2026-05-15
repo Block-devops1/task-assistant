@@ -626,6 +626,14 @@ const App = () => {
     }
   };
 
+  // Auto-load chat history when session is available (fixes mobile where onMouseEnter never fires)
+  useEffect(() => {
+    if (session && !chatLoaded) {
+      fetchChatHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   // ── Chat: save a message to Supabase ──
   const saveChatMessage = async (role, content) => {
     await supabase
@@ -2804,7 +2812,6 @@ const App = () => {
                 HABITS TO BUILD vs DISRUPTORS
               </p>
               <div style={{ display: "flex", gap: "12px" }}>
-                {/* Build pie */}
                 <div style={{ flex: 1 }}>
                   <p
                     style={{
@@ -2869,7 +2876,6 @@ const App = () => {
                     ))}
                   </div>
                 </div>
-                {/* Stop/Disruptor pie */}
                 <div style={{ flex: 1 }}>
                   <p
                     style={{

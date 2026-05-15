@@ -143,7 +143,9 @@ RULES:
     { role: "user", content: message },
   ];
 
-  try {
+  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+
+  const tryGroq = async (model, attempt = 1) => {
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -153,21 +155,46 @@ RULES:
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model,
           max_tokens: 1000,
           messages: [{ role: "system", content: systemPrompt }, ...messages],
         }),
       },
     );
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(
+        `Groq ${response.status}: ${errBody?.error?.message || "unknown"}`,
+      );
+    }
+    return response.json();
+  };
 
-    const data = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "";
-    return res.status(200).json({ reply });
-  } catch (err) {
-    console.error("Groq chat error:", err);
-    return res.status(500).json({
-      reply:
-        "Lambert's connection dropped. Check your GROQ_API_KEY or try again.",
-    });
+  for (const model of models) {
+    try {
+      // Try once, then retry once on failure before moving to fallback model
+      let data;
+      try {
+        data = await tryGroq(model);
+      } catch (firstErr) {
+        console.warn(
+          `Groq first attempt failed (${model}):`,
+          firstErr.message,
+          "— retrying...",
+        );
+        await new Promise((r) => setTimeout(r, 1500));
+        data = await tryGroq(model);
+      }
+      const reply = data.choices?.[0]?.message?.content || "";
+      return res.status(200).json({ reply });
+    } catch (err) {
+      console.error(`Groq failed on model ${model}:`, err.message);
+      // Try next model
+    }
   }
+
+  return res.status(500).json({
+    reply:
+      "Lambert's temporarily overloaded — Groq is rate limiting. Try again in 30 seconds.",
+  });
 }
