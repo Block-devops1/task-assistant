@@ -708,51 +708,6 @@ const App = () => {
   };
 
   // ── Chat: send message to Lambert ──
-  // ── Escalation level ──
-  const escalationLevel = useMemo(() => {
-    const s = streak || 0;
-    const e = analytics.efficiency || 0;
-    if (s === 0 || e < 30) return 3;
-    if (s <= 2 || e < 50) return 2;
-    if (s <= 6 || e < 70) return 1;
-    return 0;
-  }, [streak, analytics.efficiency]);
-
-  // ── Progress predictions ──
-  const predictions = useMemo(() => {
-    if (!tasks || tasks.length < 5) return null;
-    const now = Date.now();
-    const last7 = tasks.filter(
-      (t) => now - new Date(t.created_at).getTime() < 7 * 86400000,
-    );
-    const prev7 = tasks.filter((t) => {
-      const age = now - new Date(t.created_at).getTime();
-      return age >= 7 * 86400000 && age < 14 * 86400000;
-    });
-    const buildLast = last7.filter((t) => t.habit_type === "continue").length;
-    const buildPrev = prev7.filter((t) => t.habit_type === "continue").length;
-    const effTrend =
-      buildLast > buildPrev
-        ? "improving"
-        : buildLast < buildPrev
-          ? "declining"
-          : "flat";
-    const conRate = deepAnalytics.consistency || 0;
-    const daysTo80 =
-      conRate >= 80
-        ? "already there"
-        : conRate === 0
-          ? "unknown"
-          : `~${Math.ceil((80 - conRate) / Math.max(conRate / 30, 0.1))} days`;
-    return {
-      efficiencyTrend: effTrend,
-      consistencyTrend:
-        conRate >= 70 ? "on track" : conRate >= 40 ? "needs work" : "at risk",
-      projection: `At current rate, 80% consistency in ${daysTo80}`,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, deepAnalytics.consistency]);
-
   const handleChatSend = async () => {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = { role: "user", content: chatInput.trim(), id: Date.now() };
@@ -1153,6 +1108,51 @@ const App = () => {
       color: ["#ef4444", "#f97316", "#f43f5e", "#fbbf24", "#dc2626"][i % 5],
     }));
   }, [tasks]);
+
+  // ── Escalation level ──
+  const escalationLevel = useMemo(() => {
+    const s = streak || 0;
+    const e = analytics.efficiency || 0;
+    if (s === 0 || e < 30) return 3;
+    if (s <= 2 || e < 50) return 2;
+    if (s <= 6 || e < 70) return 1;
+    return 0;
+  }, [streak, analytics.efficiency]);
+
+  // ── Progress predictions ──
+  const predictions = useMemo(() => {
+    if (!tasks || tasks.length < 5) return null;
+    const now = Date.now();
+    const last7 = tasks.filter(
+      (t) => now - new Date(t.created_at).getTime() < 7 * 86400000,
+    );
+    const prev7 = tasks.filter((t) => {
+      const age = now - new Date(t.created_at).getTime();
+      return age >= 7 * 86400000 && age < 14 * 86400000;
+    });
+    const buildLast = last7.filter((t) => t.habit_type === "continue").length;
+    const buildPrev = prev7.filter((t) => t.habit_type === "continue").length;
+    const effTrend =
+      buildLast > buildPrev
+        ? "improving"
+        : buildLast < buildPrev
+          ? "declining"
+          : "flat";
+    const conRate = deepAnalytics.consistency || 0;
+    const daysTo80 =
+      conRate >= 80
+        ? "already there"
+        : conRate === 0
+          ? "unknown"
+          : `~${Math.ceil((80 - conRate) / Math.max(conRate / 30, 0.1))} days`;
+    return {
+      efficiencyTrend: effTrend,
+      consistencyTrend:
+        conRate >= 70 ? "on track" : conRate >= 40 ? "needs work" : "at risk",
+      projection: `At current rate, 80% consistency in ${daysTo80}`,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, deepAnalytics.consistency]);
 
   // ── AI Briefing ──
   const fetchAI = useCallback(async () => {
