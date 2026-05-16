@@ -738,6 +738,17 @@ const App = () => {
           weeklyChallenge,
           escalationLevel,
           predictions,
+          currentTime: new Date().toLocaleString("en", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
       const data = await res.json();
