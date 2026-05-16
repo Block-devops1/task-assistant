@@ -1210,6 +1210,18 @@ const App = () => {
         );
         return;
       }
+      // Wait for service worker to be fully active before subscribing
+      if (reg.installing || reg.waiting) {
+        await new Promise((resolve) => {
+          const sw = reg.installing || reg.waiting;
+          sw.addEventListener("statechange", function handler(e) {
+            if (e.target.state === "activated") {
+              sw.removeEventListener("statechange", handler);
+              resolve();
+            }
+          });
+        });
+      }
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(
