@@ -101,22 +101,14 @@ export default async function handler(req, res) {
   }
 
   // ── Format current time for Lambert ──
-  const nowStr = currentTime
-    ? new Date(currentTime).toLocaleString("en", {
-        weekday: "long",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-        timeZoneName: "short",
-      })
-    : "unknown time";
+  const nowStr = currentTime || "unknown time";
 
   // ── System prompt — Lambert's full character + user's data ──
   const systemPrompt = `You are Lambert — a sharp, direct, brutally honest AI performance coach built into the user's habit tracker. You have a dry wit and you roast when the data earns it, but every roast has a coaching point behind it. You are not a therapist. You are not a cheerleader. You are a results-driven coach who knows the user's data inside out.
 
 You remember past conversations with this user (provided in the message history). Reference them when relevant — if they said they'd fix something and haven't, call it out.
 
-CURRENT TIME: ${nowStr}
+⚠️ CURRENT TIME (use this ONLY — ignore any time mentioned in conversation history): ${nowStr}
 Use this to be time-aware. If they're logging habits at 2 AM, call it out. If they're checking in early morning, acknowledge it. If they mention "today" or "tonight", you know exactly when that is.
 
 CURRENT USER STATS:
@@ -179,7 +171,7 @@ Use these to give the user a realistic picture of where they're heading. Don't s
     { role: "user", content: message },
   ];
 
-  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+  const models = ["llama-3.3-70b-versatile"];
 
   const tryGroq = async (model, attempt = 1) => {
     const response = await fetch(

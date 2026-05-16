@@ -738,16 +738,27 @@ const App = () => {
           weeklyChallenge,
           escalationLevel,
           predictions,
-          currentTime: new Date().toLocaleString("en", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          }),
+          currentTime: (() => {
+            const now = new Date();
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const readable = now.toLocaleString("en", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              hour12: true,
+              timeZone: tz,
+            });
+            const h = now.toLocaleString("en", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+              timeZone: tz,
+            });
+            return `${readable} (24h: ${h})`;
+          })(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
