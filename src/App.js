@@ -1350,7 +1350,8 @@ const App = () => {
     deepAnalytics.consistency,
     deepAnalytics.winRate,
     tasks,
-  ]); // eslint-disable-line
+    session?.access_token,
+  ]);
 
   useEffect(() => {
     if (session && tasks.length > 0 && !aiFetchedRef.current) {
