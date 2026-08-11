@@ -1,9 +1,17 @@
 // api/ai-brief.js — Vercel Serverless Function
 // Lambert AI Coach — powered by Groq (free), habit-aware, roasts when deserved.
 
+import { checkAccess } from "./_lib/checkAccess.js";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // ── Verify identity, approval, and daily cap before spending Groq quota ──
+  const access = await checkAccess(req.headers.authorization);
+  if (!access.ok) {
+    return res.status(access.status).json({ error: access.error });
   }
 
   const {
@@ -133,11 +141,9 @@ Do not use filler phrases like "Great job" or "Keep it up." Be Lambert.`;
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          // 8B model: 14,400 req/day free vs 1,000 req/day for 70B.
-          // This endpoint fires often (every log), so it needs the
-          // higher-limit model. Quality is still solid for short,
-          // stats-driven roasts — reserve 70B for the deeper chat coach.
-          model: "llama-3.1-8b-instant",
+          // Admin gets 70B (higher quality); non-admins are routed to
+          // 8B by checkAccess, isolating them from the 70B quota.
+          model: access.model,
           max_tokens: 300,
           messages: [{ role: "user", content: prompt }],
         }),

@@ -424,6 +424,9 @@ const App = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
+  const [strictnessLevel, setStrictnessLevel] = useState(1);
+  const [pendingStrictness, setPendingStrictness] = useState(null);
+  const [pendingStrictnessAt, setPendingStrictnessAt] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -616,7 +619,9 @@ const App = () => {
     if (!session) return;
     const { data, error } = await supabase
       .from("user_access")
-      .select("status, is_admin")
+      .select(
+        "status, is_admin, strictness_level, pending_strictness_level, strictness_change_effective_at",
+      )
       .eq("user_id", session.user.id)
       .maybeSingle();
     if (error) {
@@ -631,11 +636,44 @@ const App = () => {
     }
     setAccessStatus(data.status);
     setIsAdmin(!!data.is_admin);
+    setStrictnessLevel(data.strictness_level ?? 1);
+    setPendingStrictness(data.pending_strictness_level ?? null);
+    setPendingStrictnessAt(data.strictness_change_effective_at ?? null);
   };
   useEffect(() => {
     if (session) fetchAccessStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
+
+  // ── Strictness dial: request a change (raising instant, lowering delayed after first grace) ──
+  const requestStrictnessChange = async (newLevel) => {
+    if (!session) return;
+    try {
+      const res = await fetch("/api/set-strictness", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ newLevel }),
+      });
+      const data = await res.json();
+      if (data.applied === "delayed") {
+        setPendingStrictness(data.pendingLevel);
+        setPendingStrictnessAt(data.effectiveAt);
+        alert(
+          `Lowering to level ${newLevel} will take effect in 24 hours (you've already used your one-time instant change). Current level stays at ${data.currentLevel} until then.`,
+        );
+      } else {
+        setStrictnessLevel(newLevel);
+        setPendingStrictness(null);
+        setPendingStrictnessAt(null);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't update strictness. Try again.");
+    }
+  };
 
   // ── Admin: list all users ──
   const fetchAdminUsers = async () => {
@@ -803,7 +841,10 @@ const App = () => {
     try {
       const res = await fetch("/api/ai-chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           message: userMsg.content,
           history: chatHistory.map(({ role, content }) => ({ role, content })),
@@ -1277,7 +1318,10 @@ const App = () => {
     try {
       const res = await fetch("/api/ai-brief", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           efficiency,
           build,
@@ -3613,6 +3657,116 @@ const App = () => {
                   offColor={th.switchOff}
                 />
               </div>
+            </div>
+
+            {/* ── Coach Strictness Dial ── */}
+            <div style={{ ...card, marginTop: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "8px",
+                }}
+              >
+                <Activity size={18} color="#8b5cf6" />
+                <span
+                  style={{
+                    fontWeight: "700",
+                    fontSize: "1.05rem",
+                    color: th.text,
+                  }}
+                >
+                  Coach Strictness
+                </span>
+              </div>
+              <p
+                style={{
+                  margin: "0 0 16px",
+                  fontSize: "0.8rem",
+                  color: th.textMuted,
+                  lineHeight: 1.55,
+                }}
+              >
+                Sets how hard Lambert pushes. Every level still calls out
+                excuses and never lets things slide — this only changes the
+                pressure and tone. Raising it applies instantly. Lowering it
+                applies instantly once (your one free correction) — after that,
+                lowering it takes 24 hours to take effect.
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "8px",
+                }}
+              >
+                {[1, 2, 3, 4, 5].map((lvl) => (
+                  <div
+                    key={lvl}
+                    onClick={() => requestStrictnessChange(lvl)}
+                    style={{
+                      flex: 1,
+                      textAlign: "center",
+                      cursor: "pointer",
+                      padding: "10px 4px",
+                      marginRight: lvl < 5 ? "6px" : 0,
+                      borderRadius: "10px",
+                      background:
+                        lvl === strictnessLevel
+                          ? "linear-gradient(135deg,#8b5cf6,#6d28d9)"
+                          : th.inputBg,
+                      color: lvl === strictnessLevel ? "#fff" : th.textMuted,
+                      fontWeight: "700",
+                      fontSize: "0.85rem",
+                      border:
+                        lvl === strictnessLevel
+                          ? "none"
+                          : `1px solid ${th.inputBdr}`,
+                      transition: "all .15s",
+                    }}
+                  >
+                    {lvl}
+                  </div>
+                ))}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "0.6rem",
+                  color: th.textMuted,
+                  letterSpacing: "0.5px",
+                }}
+              >
+                <span>NORMAL</span>
+                <span>EXTREME</span>
+              </div>
+
+              {pendingStrictness && (
+                <div
+                  style={{
+                    marginTop: "14px",
+                    padding: "10px 12px",
+                    borderRadius: "10px",
+                    background: "rgba(251,191,36,.08)",
+                    border: "1px solid rgba(251,191,36,.2)",
+                    fontSize: "0.72rem",
+                    color: "#fbbf24",
+                  }}
+                >
+                  Pending drop to level {pendingStrictness} — takes effect{" "}
+                  {pendingStrictnessAt &&
+                    new Date(pendingStrictnessAt).toLocaleString("en", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  . Raise the dial again to cancel it.
+                </div>
+              )}
             </div>
 
             {/* ── Performance Summary ── */}
