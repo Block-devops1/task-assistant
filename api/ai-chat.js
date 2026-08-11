@@ -3,19 +3,9 @@
 // Receives the conversation history from the client (fetched from Supabase),
 // sends it to Groq, returns Lambert's reply.
 
-import { checkAccess } from "./_lib/checkAccess.js";
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  // ── Verify identity, approval, daily cap, and model routing ──
-  const access = await checkAccess(req.headers.authorization);
-  if (!access.ok) {
-    return res
-      .status(access.status)
-      .json({ error: access.error, reply: access.error });
   }
 
   const {
@@ -29,7 +19,7 @@ export default async function handler(req, res) {
     currentTime, // ISO timestamp of when the user is chatting
     goals, // user's saved goals from lambert_goals table
     weeklyChallenge, // this week's challenge
-    escalationLevel, // 0=normal 1=firm 2=strict 3=maximum (auto, data-driven)
+    escalationLevel, // 0=normal 1=firm 2=strict 3=maximum
     predictions, // computed predictions object
   } = req.body;
 
@@ -110,6 +100,16 @@ export default async function handler(req, res) {
     );
   }
 
+  // ── Recent logs with their descriptions, so Lambert knows the specifics
+  // of what was actually done/read, not just the subject + duration ──
+  const recentLogDetails = sortedLogs
+    .slice(0, 8)
+    .map((h) => {
+      const base = `"${h.subject}" (${h.duration}m, ${h.habit_type === "continue" ? "build" : "stop"})`;
+      return h.description ? `${base} — ${h.description}` : base;
+    })
+    .join("; ");
+
   // ── Format current time for Lambert ──
   const nowStr = currentTime || "unknown time";
 
@@ -130,6 +130,7 @@ CURRENT USER STATS:
 - Recent log gaps: ${recentGaps.length ? recentGaps.join("; ") : "not enough data"}
 - Top build habits: ${topBuild || "none yet"}
 - Top disruptors: ${topStop || "none yet"}
+- Recent logs (with details where logged): ${recentLogDetails || "none yet"}
 
 RULES:
 - Keep responses concise — 3 to 6 sentences unless they ask for detail.
@@ -155,27 +156,11 @@ WEEKLY CHALLENGE:
 - Current week's challenge: ${weeklyChallenge ? `"${weeklyChallenge}"` : "none set yet"}
 - Reference the weekly challenge in relevant conversations. If it's not set yet, generate one based on the user's weakest data point and include it as <<CHALLENGE: challenge text here>> in your response — the system saves it automatically.
 
-ACCOUNTABILITY ESCALATION (auto, data-driven — level ${escalationLevel || 0}/3):
+ACCOUNTABILITY ESCALATION (level ${escalationLevel || 0}/3):
 ${escalationLevel >= 3 ? "- MAXIMUM MODE: No softness. Data is bad. Be direct and unflinching. Every response should drive urgency." : ""}
 ${escalationLevel === 2 ? "- STRICT MODE: Be noticeably firmer. Less encouragement, more demand. Name what's slipping." : ""}
 ${escalationLevel === 1 ? "- FIRM MODE: Slightly stricter than normal. Acknowledge effort but don't let slides pass." : ""}
 ${!escalationLevel || escalationLevel === 0 ? "- NORMAL MODE: Balanced coaching. Push without crushing." : ""}
-
-USER-SET STRICTNESS DIAL (level ${access.strictnessLevel}/5 — this is the user's own chosen baseline, layer it on top of the escalation above rather than replacing it):
-${access.strictnessLevel >= 5 ? "- EXTREME: Maximum bluntness, zero cushioning. Treat every excuse as actively working against their goals. No warmth cushion, ever." : ""}
-${access.strictnessLevel === 4 ? "- HARD: Minimal warmth. Call out self-deception immediately — don't wait for a pattern to form before naming it." : ""}
-${access.strictnessLevel === 3 ? "- STRICT: No excuses tolerated. Confront inconsistency head-on every single time, not just when it's severe." : ""}
-${access.strictnessLevel === 2 ? "- FIRM: Less patience for repeated slip-ups than baseline. Push back faster than you would by default." : ""}
-${access.strictnessLevel === 1 ? "- NORMAL: Direct and honest, credit where it's earned, but nothing slides." : ""}
-Regardless of the dial position, the floor never moves: never validate an excuse, never let laziness or emotional avoidance get reframed as a legitimate reason without being named as such.
-
-GOAL QUALITY CHECK:
-- Consistency is not automatically good. When something is logged as a "build" habit and stays consistent, check whether it actually serves the user long-term — their stated goals, their reputation, their image, where they say they want to end up.
-- If a habit is consistent but is quietly working against their long-term interests (e.g. time that doesn't build toward anything they actually value, or something that could hurt how they're seen), say so directly. Don't let a streak alone stand in for "this is good for me."
-
-TOPIC RESOLUTION TRACKING:
-- Track whether the current matter being discussed is actually settled before treating the conversation as moved on.
-- If the user shifts to something tangential before the original point is resolved, notice it. Ask directly whether it genuinely relates to what's being discussed or whether it's a way to avoid finishing it — then steer back until it's actually settled.
 
 PROGRESS PREDICTIONS:
 ${
@@ -200,13 +185,9 @@ Use these to give the user a realistic picture of where they're heading. Don't s
     { role: "user", content: message },
   ];
 
-  // Admin gets 70B with 8B fallback (protects quality without risking
-  // total failure if the 70B daily cap is hit). Non-admins are already
-  // routed straight to 8B by checkAccess, isolating them from the 70B
-  // quota entirely.
-  const models = access.isAdmin
-    ? ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
-    : [access.model];
+  // 70B first for quality; falls back to 8B (much higher daily limit)
+  // if 70B's 1,000/day free-tier cap is hit, instead of failing outright.
+  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 
   const tryGroq = async (model, attempt = 1) => {
     const response = await fetch(
