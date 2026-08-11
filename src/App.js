@@ -423,6 +423,7 @@ const App = () => {
   const [subject, setSubject] = useState("");
   const [duration, setDuration] = useState("");
   const [habitType, setHabitType] = useState("continue");
+  const [logDescription, setLogDescription] = useState("");
   const [shieldActive, setShieldActive] = useState(false);
   const [globalGoal, setGlobalGoal] = useState(180);
   const [aiText, setAiText] = useState("");
@@ -1102,6 +1103,17 @@ const App = () => {
     };
   }, [tasks]);
 
+  // ── Known subjects for autocomplete (most recently used first) ──
+  const knownSubjects = useMemo(() => {
+    const seen = new Map();
+    [...tasks]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .forEach((t) => {
+        if (t.subject && !seen.has(t.subject)) seen.set(t.subject, true);
+      });
+    return [...seen.keys()];
+  }, [tasks]);
+
   // ── Pie segments (build habits) ──
   const pieSegments = useMemo(() => {
     const bt = tasks.filter((t) => t.habit_type === "continue");
@@ -1330,6 +1342,7 @@ const App = () => {
         subject: subject.replace(/[<>]/g, "").trim(),
         duration: parseInt(duration),
         habit_type: habitType,
+        description: logDescription.replace(/[<>]/g, "").trim() || null,
         user_id: session.user.id,
       },
     ]);
@@ -1340,6 +1353,7 @@ const App = () => {
       setSubject("");
       setDuration("");
       setHabitType("continue");
+      setLogDescription("");
     }
     setIsLogging(false);
   };
@@ -4124,8 +4138,14 @@ const App = () => {
               style={inp}
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
+              list="known-subjects"
               autoFocus
             />
+            <datalist id="known-subjects">
+              {knownSubjects.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
 
             <label
               style={{
@@ -4144,6 +4164,24 @@ const App = () => {
               style={inp}
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
+            />
+
+            <label
+              style={{
+                fontSize: "0.6rem",
+                color: th.textMuted,
+                letterSpacing: "2px",
+                display: "block",
+                marginBottom: "6px",
+              }}
+            >
+              DESCRIPTION (OPTIONAL)
+            </label>
+            <textarea
+              placeholder="e.g. Read chapter 3 of Atomic Habits"
+              style={{ ...inp, resize: "vertical", minHeight: "60px" }}
+              value={logDescription}
+              onChange={(e) => setLogDescription(e.target.value)}
             />
 
             <label
