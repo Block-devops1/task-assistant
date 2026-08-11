@@ -1768,8 +1768,42 @@ const App = () => {
         color: th.text,
         minHeight: "100vh",
         fontFamily: "'Syne',sans-serif",
+        position: "relative",
       }}
     >
+      {/* ── Desktop-only background treatment for the gutters beside the centered column ── */}
+      {isDark && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 0,
+            pointerEvents: "none",
+            opacity: 0.025,
+            backgroundImage:
+              "linear-gradient(rgba(59,130,246,1) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,1) 1px,transparent 1px)",
+            backgroundSize: "44px 44px",
+          }}
+        />
+      )}
+      {isDark && (
+        <div
+          style={{
+            position: "fixed",
+            top: "-10%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "900px",
+            height: "700px",
+            zIndex: 0,
+            pointerEvents: "none",
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle,rgba(59,130,246,.06) 0%,transparent 70%)",
+          }}
+        />
+      )}
+
       {/* ── DRAWER ── */}
       {isMenuOpen && (
         <div
@@ -1982,6 +2016,8 @@ const App = () => {
           maxWidth: "820px",
           margin: "0 auto",
           padding: activeTab === "chat" ? "0 18px 0" : "0 18px 100px",
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <header
@@ -2851,18 +2887,22 @@ const App = () => {
               <ResponsiveContainer width="100%" height={290}>
                 <ComposedChart
                   data={chartData}
-                  margin={{ top: 10, right: 8, bottom: 0, left: -12 }}
+                  margin={{ top: 10, right: 8, bottom: 8, left: -12 }}
                 >
                   <CartesianGrid vertical={false} stroke={th.gridLine} />
                   <XAxis
                     dataKey="name"
                     tick={{
-                      fontSize: 9,
+                      fontSize: 8,
                       fill: th.textMuted,
                       fontFamily: "Syne",
                     }}
                     axisLine={false}
                     tickLine={false}
+                    interval={0}
+                    angle={-40}
+                    textAnchor="end"
+                    height={48}
                   />
                   <YAxis
                     tick={{
@@ -3196,7 +3236,7 @@ const App = () => {
               >
                 HABITS TO BUILD vs DISRUPTORS
               </p>
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ display: "flex", gap: "18px" }}>
                 <div style={{ flex: 1 }}>
                   <p
                     style={{
@@ -3216,8 +3256,8 @@ const App = () => {
                         dataKey="value"
                         cx="50%"
                         cy="50%"
-                        innerRadius={35}
-                        outerRadius={58}
+                        innerRadius={28}
+                        outerRadius={46}
                         stroke="none"
                         paddingAngle={3}
                       >
@@ -3280,8 +3320,8 @@ const App = () => {
                         dataKey="value"
                         cx="50%"
                         cy="50%"
-                        innerRadius={35}
-                        outerRadius={58}
+                        innerRadius={28}
+                        outerRadius={46}
                         stroke="none"
                         paddingAngle={3}
                       >
