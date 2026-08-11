@@ -133,8 +133,12 @@ Do not use filler phrases like "Great job" or "Keep it up." Be Lambert.`;
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          max_tokens: 1000,
+          // 8B model: 14,400 req/day free vs 1,000 req/day for 70B.
+          // This endpoint fires often (every log), so it needs the
+          // higher-limit model. Quality is still solid for short,
+          // stats-driven roasts — reserve 70B for the deeper chat coach.
+          model: "llama-3.1-8b-instant",
+          max_tokens: 300,
           messages: [{ role: "user", content: prompt }],
         }),
       },

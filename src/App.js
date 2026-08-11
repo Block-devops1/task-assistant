@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   Zap,
@@ -413,6 +419,11 @@ const HabitRank = ({ habits, type, th }) => (
 const App = () => {
   // ── Core state ──
   const [session, setSession] = useState(null);
+  const aiFetchedRef = useRef(false); // ensures fetchAI() auto-fires once per session, not on every log
+  const [accessStatus, setAccessStatus] = useState(null); // 'pending' | 'approved' | 'blacklisted' | null (loading)
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -599,6 +610,72 @@ const App = () => {
   useEffect(() => {
     if (session) fetchLogs();
   }, [session]); // eslint-disable-line
+
+  // ── Access gate: check approval status the moment we have a session ──
+  const fetchAccessStatus = async () => {
+    if (!session) return;
+    const { data, error } = await supabase
+      .from("user_access")
+      .select("status, is_admin")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (error) {
+      console.error(error.message);
+      setAccessStatus("pending"); // fail closed, not open
+      return;
+    }
+    if (!data) {
+      // No row yet (e.g. account existed before this migration ran)
+      setAccessStatus("pending");
+      return;
+    }
+    setAccessStatus(data.status);
+    setIsAdmin(!!data.is_admin);
+  };
+  useEffect(() => {
+    if (session) fetchAccessStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  // ── Admin: list all users ──
+  const fetchAdminUsers = async () => {
+    if (!session || !isAdmin) return;
+    setAdminLoading(true);
+    try {
+      const res = await fetch("/api/admin-users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "list" }),
+      });
+      const data = await res.json();
+      if (data.users) setAdminUsers(data.users);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // ── Admin: approve / blacklist / reset a user ──
+  const setUserStatus = async (targetUserId, newStatus) => {
+    if (!session || !isAdmin) return;
+    try {
+      await fetch("/api/admin-users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action: "setStatus", targetUserId, newStatus }),
+      });
+      fetchAdminUsers();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchLogs = async () => {
     const { data, error } = await supabase
@@ -799,6 +876,11 @@ const App = () => {
       setChatLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (session && isAdmin) fetchAdminUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, isAdmin]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -1227,7 +1309,10 @@ const App = () => {
   ]); // eslint-disable-line
 
   useEffect(() => {
-    if (session && tasks.length > 0) fetchAI();
+    if (session && tasks.length > 0 && !aiFetchedRef.current) {
+      aiFetchedRef.current = true;
+      fetchAI();
+    }
   }, [tasks.length, session]); // eslint-disable-line
 
   // ── Push: subscribe ──
@@ -1570,6 +1655,66 @@ const App = () => {
       </div>
     );
 
+  // ════════════════════════════════ ACCESS GATE ════════════════════════════════
+  // Block the app until an admin approves this account. Fail-closed:
+  // still loading, no row, or explicitly pending/blacklisted all render
+  // a gate screen instead of the hub.
+  if (accessStatus !== "approved") {
+    const isBlacklisted = accessStatus === "blacklisted";
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: th.bg,
+          color: th.text,
+          fontFamily: "'Syne',sans-serif",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          textAlign: "center",
+        }}
+      >
+        <Zap size={30} color={isBlacklisted ? "#ef4444" : "#fbbf24"} />
+        <h2 style={{ marginTop: "16px", marginBottom: "8px" }}>
+          {isBlacklisted
+            ? "Access Revoked"
+            : accessStatus === "pending"
+              ? "Awaiting Approval"
+              : "Checking access..."}
+        </h2>
+        <p
+          style={{
+            color: th.textMuted,
+            fontSize: "0.85rem",
+            maxWidth: "320px",
+          }}
+        >
+          {isBlacklisted
+            ? "This account no longer has access to Lambert."
+            : accessStatus === "pending"
+              ? "Your account is signed up but hasn't been approved yet. You'll get access once it's reviewed."
+              : "One moment..."}
+        </p>
+        <div
+          onClick={() => supabase.auth.signOut()}
+          style={{
+            marginTop: "26px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            color: th.textMuted,
+            cursor: "pointer",
+            fontSize: "0.8rem",
+          }}
+        >
+          <LogOut size={13} /> Sign Out
+        </div>
+      </div>
+    );
+  }
+
   // ════════════════════════════════ MAIN HUB ════════════════════════════════
   return (
     <div
@@ -1657,6 +1802,9 @@ const App = () => {
                 { id: "analytics", icon: BarChart2, label: "Analytics Hub" },
                 { id: "targets", icon: Target, label: "Goals & Settings" },
                 { id: "chat", icon: BookOpen, label: "Talk to Lambert" },
+                ...(isAdmin
+                  ? [{ id: "admin", icon: Shield, label: "Admin — Users" }]
+                  : []),
               ].map((item) => (
                 <div
                   key={item.id}
@@ -1820,7 +1968,11 @@ const App = () => {
                 ? "Executive HUB"
                 : activeTab === "analytics"
                   ? "Analytics HUB"
-                  : "Goals & Settings"}
+                  : activeTab === "chat"
+                    ? "Talk to Lambert"
+                    : activeTab === "admin"
+                      ? "Admin — Users"
+                      : "Goals & Settings"}
             </div>
           </div>
           <div style={iBtn} onClick={() => supabase.auth.signOut()}>
@@ -4022,6 +4174,205 @@ const App = () => {
                 Send
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ════ ADMIN ════ */}
+        {activeTab === "admin" && isAdmin && (
+          <div className="fu">
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "14px",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.6rem",
+                  color: th.textMuted,
+                  letterSpacing: "2px",
+                }}
+              >
+                USER ACCESS ({adminUsers.length})
+              </p>
+              <button
+                onClick={fetchAdminUsers}
+                disabled={adminLoading}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: adminLoading ? "not-allowed" : "pointer",
+                  color: th.textMuted,
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "4px",
+                }}
+              >
+                <RefreshCw
+                  size={13}
+                  style={{
+                    animation: adminLoading
+                      ? "spin 1s linear infinite"
+                      : "none",
+                  }}
+                />
+              </button>
+            </div>
+
+            {adminUsers.length === 0 && !adminLoading && (
+              <div
+                style={{
+                  ...card,
+                  textAlign: "center",
+                  padding: "30px",
+                  opacity: 0.5,
+                }}
+              >
+                No users yet.
+              </div>
+            )}
+
+            {adminUsers.map((u) => {
+              const statusColor =
+                u.status === "approved"
+                  ? "#10b981"
+                  : u.status === "blacklisted"
+                    ? "#ef4444"
+                    : "#fbbf24";
+              return (
+                <div
+                  key={u.user_id}
+                  style={{
+                    background: th.logBg,
+                    padding: "13px 15px",
+                    borderRadius: "14px",
+                    marginBottom: "8px",
+                    border: `1px solid ${th.logBdr}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontWeight: "600",
+                          fontSize: "0.85rem",
+                          color: th.text,
+                        }}
+                      >
+                        {u.email}
+                        {u.is_admin && (
+                          <span
+                            style={{
+                              fontSize: "0.6rem",
+                              color: "#3b82f6",
+                              marginLeft: "6px",
+                            }}
+                          >
+                            ADMIN
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.6rem",
+                          color: th.textMuted,
+                          marginTop: "2px",
+                        }}
+                      >
+                        Signed up{" "}
+                        {u.created_at &&
+                          new Date(u.created_at).toLocaleDateString("en", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.6rem",
+                        fontWeight: "700",
+                        color: statusColor,
+                        letterSpacing: "1px",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {u.status}
+                    </span>
+                  </div>
+                  {!u.is_admin && (
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      {u.status !== "approved" && (
+                        <button
+                          onClick={() => setUserStatus(u.user_id, "approved")}
+                          style={{
+                            flex: 1,
+                            padding: "8px",
+                            borderRadius: "9px",
+                            border: "none",
+                            background: "rgba(16,185,129,.12)",
+                            color: "#10b981",
+                            fontWeight: "700",
+                            fontSize: "0.72rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Approve
+                        </button>
+                      )}
+                      {u.status !== "blacklisted" && (
+                        <button
+                          onClick={() =>
+                            setUserStatus(u.user_id, "blacklisted")
+                          }
+                          style={{
+                            flex: 1,
+                            padding: "8px",
+                            borderRadius: "9px",
+                            border: "none",
+                            background: "rgba(239,68,68,.12)",
+                            color: "#ef4444",
+                            fontWeight: "700",
+                            fontSize: "0.72rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Blacklist
+                        </button>
+                      )}
+                      {u.status !== "pending" && (
+                        <button
+                          onClick={() => setUserStatus(u.user_id, "pending")}
+                          style={{
+                            flex: 1,
+                            padding: "8px",
+                            borderRadius: "9px",
+                            border: "none",
+                            background: th.inputBg,
+                            color: th.textMuted,
+                            fontWeight: "700",
+                            fontSize: "0.72rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

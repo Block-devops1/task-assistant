@@ -174,7 +174,9 @@ Use these to give the user a realistic picture of where they're heading. Don't s
     { role: "user", content: message },
   ];
 
-  const models = ["llama-3.3-70b-versatile"];
+  // 70B first for quality; falls back to 8B (much higher daily limit)
+  // if 70B's 1,000/day free-tier cap is hit, instead of failing outright.
+  const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 
   const tryGroq = async (model, attempt = 1) => {
     const response = await fetch(
