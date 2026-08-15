@@ -132,6 +132,16 @@ export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST")
     return res.status(405).end();
 
+  // ── Require a shared secret — this route sends real notifications and
+  // burns Groq quota on the weekly report, so it can't be left public.
+  // Your external scheduler (e.g. cron-job.org) must send this same
+  // value as a header or query param. Set CRON_SECRET in Vercel env vars.
+  const providedSecret =
+    req.headers["x-cron-secret"] || req.query?.secret || req.body?.secret;
+  if (!process.env.CRON_SECRET || providedSecret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   // Fetch all push subscriptions
   const { data: subs, error: subErr } = await supabase
     .from("push_subscriptions")
