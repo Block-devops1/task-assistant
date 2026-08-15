@@ -36,7 +36,6 @@ import {
   Copy,
   Check,
   Mic,
-  MicOff,
 } from "lucide-react";
 import {
   XAxis,
