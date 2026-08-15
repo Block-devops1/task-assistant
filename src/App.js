@@ -35,6 +35,8 @@ import {
   Star,
   Copy,
   Check,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import {
   XAxis,
@@ -439,6 +441,8 @@ const App = () => {
   const [duration, setDuration] = useState("");
   const [habitType, setHabitType] = useState("continue");
   const [logDescription, setLogDescription] = useState("");
+  const [voiceField, setVoiceField] = useState(null); // 'subject' | 'description' | null — which field is currently listening
+  const [voiceSupported, setVoiceSupported] = useState(false);
   const [shieldActive, setShieldActive] = useState(false);
   const [globalGoal, setGlobalGoal] = useState(180);
   const [aiText, setAiText] = useState("");
@@ -1482,6 +1486,43 @@ const App = () => {
     const rawData = window.atob(base64);
     return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
   }
+
+  // ── Voice dictation for log fields — pure browser Speech-to-Text,
+  // no AI call, no extra cost. Just fills the same text field typing would. ──
+  useEffect(() => {
+    setVoiceSupported(
+      typeof window !== "undefined" &&
+        !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+    );
+  }, []);
+
+  const startVoiceInput = (field) => {
+    const SpeechRecognitionAPI =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    setVoiceField(field);
+
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript.trim();
+      if (field === "subject") {
+        setSubject(transcript);
+      } else if (field === "description") {
+        setLogDescription((prev) =>
+          prev ? `${prev} ${transcript}` : transcript,
+        );
+      }
+    };
+    recognition.onerror = () => setVoiceField(null);
+    recognition.onend = () => setVoiceField(null);
+
+    recognition.start();
+  };
 
   const handleLogHabit = async () => {
     if (!subject || !duration) return;
@@ -4738,14 +4779,49 @@ const App = () => {
             >
               SUBJECT
             </label>
-            <input
-              placeholder="e.g. Deep Work, Social Media..."
-              style={inp}
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              list="known-subjects"
-              autoFocus
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                placeholder="e.g. Deep Work, Social Media..."
+                style={{
+                  ...inp,
+                  paddingRight: voiceSupported ? "48px" : undefined,
+                }}
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                list="known-subjects"
+                autoFocus
+              />
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={() => startVoiceInput("subject")}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "10px",
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "9px",
+                    border: "none",
+                    cursor: "pointer",
+                    background:
+                      voiceField === "subject"
+                        ? "rgba(239,68,68,.15)"
+                        : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="Dictate subject"
+                >
+                  {voiceField === "subject" ? (
+                    <Mic size={15} color="#ef4444" className="sp" />
+                  ) : (
+                    <Mic size={15} color={th.textMuted} />
+                  )}
+                </button>
+              )}
+            </div>
             <datalist id="known-subjects">
               {knownSubjects.map((s) => (
                 <option key={s} value={s} />
@@ -4782,12 +4858,49 @@ const App = () => {
             >
               DESCRIPTION (OPTIONAL)
             </label>
-            <textarea
-              placeholder="e.g. Read chapter 3 of Atomic Habits"
-              style={{ ...inp, resize: "vertical", minHeight: "60px" }}
-              value={logDescription}
-              onChange={(e) => setLogDescription(e.target.value)}
-            />
+            <div style={{ position: "relative" }}>
+              <textarea
+                placeholder="e.g. Read chapter 3 of Atomic Habits"
+                style={{
+                  ...inp,
+                  resize: "vertical",
+                  minHeight: "60px",
+                  paddingRight: voiceSupported ? "48px" : undefined,
+                }}
+                value={logDescription}
+                onChange={(e) => setLogDescription(e.target.value)}
+              />
+              {voiceSupported && (
+                <button
+                  type="button"
+                  onClick={() => startVoiceInput("description")}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "10px",
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "9px",
+                    border: "none",
+                    cursor: "pointer",
+                    background:
+                      voiceField === "description"
+                        ? "rgba(239,68,68,.15)"
+                        : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="Dictate description"
+                >
+                  {voiceField === "description" ? (
+                    <Mic size={15} color="#ef4444" className="sp" />
+                  ) : (
+                    <Mic size={15} color={th.textMuted} />
+                  )}
+                </button>
+              )}
+            </div>
 
             <label
               style={{
