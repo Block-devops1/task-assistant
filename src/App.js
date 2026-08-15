@@ -427,6 +427,7 @@ const App = () => {
   const [strictnessLevel, setStrictnessLevel] = useState(1);
   const [pendingStrictness, setPendingStrictness] = useState(null);
   const [pendingStrictnessAt, setPendingStrictnessAt] = useState(null);
+  const [usedStrictnessGrace, setUsedStrictnessGrace] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -620,7 +621,7 @@ const App = () => {
     const { data, error } = await supabase
       .from("user_access")
       .select(
-        "status, is_admin, strictness_level, pending_strictness_level, strictness_change_effective_at",
+        "status, is_admin, strictness_level, pending_strictness_level, strictness_change_effective_at, used_strictness_grace",
       )
       .eq("user_id", session.user.id)
       .maybeSingle();
@@ -639,6 +640,7 @@ const App = () => {
     setStrictnessLevel(data.strictness_level ?? 1);
     setPendingStrictness(data.pending_strictness_level ?? null);
     setPendingStrictnessAt(data.strictness_change_effective_at ?? null);
+    setUsedStrictnessGrace(!!data.used_strictness_grace);
   };
   useEffect(() => {
     if (session) fetchAccessStatus();
@@ -658,16 +660,28 @@ const App = () => {
         body: JSON.stringify({ newLevel }),
       });
       const data = await res.json();
+
       if (data.applied === "delayed") {
         setPendingStrictness(data.pendingLevel);
         setPendingStrictnessAt(data.effectiveAt);
         alert(
-          `Lowering to level ${newLevel} will take effect in 24 hours (you've already used your one-time instant change). Current level stays at ${data.currentLevel} until then.`,
+          `Lowering to level ${newLevel} will take effect in 24 hours (your one-time instant correction is already used). Stays at level ${data.currentLevel} until then.`,
         );
-      } else {
+      } else if (data.applied === "instant_grace") {
+        setStrictnessLevel(newLevel);
+        setUsedStrictnessGrace(true);
+        setPendingStrictness(null);
+        setPendingStrictnessAt(null);
+        alert(
+          `Set to level ${newLevel} instantly — that used your one-time free correction. Any future lowering will take 24 hours.`,
+        );
+      } else if (data.applied === "instant") {
         setStrictnessLevel(newLevel);
         setPendingStrictness(null);
         setPendingStrictnessAt(null);
+        // Raising is always silent by design — no popup needed.
+      } else {
+        alert(data.error || "Couldn't update strictness. Try again.");
       }
     } catch (err) {
       console.error(err);
@@ -3785,6 +3799,18 @@ const App = () => {
                 <span>EXTREME</span>
               </div>
 
+              <div
+                style={{
+                  marginTop: "12px",
+                  fontSize: "0.68rem",
+                  color: usedStrictnessGrace ? "#fbbf24" : "#10b981",
+                }}
+              >
+                {usedStrictnessGrace
+                  ? "One-time instant correction already used — lowering the dial now takes 24 hours."
+                  : "One-time instant correction available — your first lower applies immediately, no wait."}
+              </div>
+
               {pendingStrictness && (
                 <div
                   style={{
@@ -4311,7 +4337,16 @@ const App = () => {
                     Math.min(e.target.scrollHeight, 120) + "px";
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
+                  const isTouchDevice =
+                    typeof window !== "undefined" &&
+                    (window.matchMedia("(pointer: coarse)").matches ||
+                      navigator.maxTouchPoints > 0);
+                  // On touch devices (Android/iOS), Enter always inserts a
+                  // newline — there's no reliable Shift gesture on a soft
+                  // keyboard, so treating Enter as "send" there means you
+                  // can never break a line. Desktop keeps Enter-to-send,
+                  // Shift+Enter for a newline.
+                  if (e.key === "Enter" && !e.shiftKey && !isTouchDevice) {
                     e.preventDefault();
                     handleChatSend();
                   }
