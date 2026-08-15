@@ -1,10 +1,10 @@
 // Lambert Service Worker — PWA + Push Notifications
 // Place this file at: public/sw.js
 
-const CACHE_NAME = "lambert-v1";
+const CACHE_NAME = "lambert-v2"; // bumped so browsers detect this as a real update
 const STATIC_ASSETS = ["/", "/index.html", "/manifest.json"];
 
-// ── Install: cache shell ──────────────────────────────────────────────────────
+// ── Install: cache shell ──
 self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)),
@@ -12,7 +12,7 @@ self.addEventListener("install", (e) => {
   self.skipWaiting();
 });
 
-// ── Activate: clean old caches ───────────────────────────────────────────────
+// ── Activate: clean old caches ──
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
@@ -26,7 +26,7 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-// ── Fetch: network-first, fall back to cache ─────────────────────────────────
+// ── Fetch: network-first, fall back to cache ──
 self.addEventListener("fetch", (e) => {
   // Only handle GET requests for same-origin or CDN assets
   if (e.request.method !== "GET") return;
@@ -43,7 +43,7 @@ self.addEventListener("fetch", (e) => {
   );
 });
 
-// ── Push: receive notification from server ───────────────────────────────────
+// ── Push: receive notification from server ──
 self.addEventListener("push", (e) => {
   let payload = {
     title: "Lambert",
@@ -73,7 +73,7 @@ self.addEventListener("push", (e) => {
   e.waitUntil(self.registration.showNotification(payload.title, options));
 });
 
-// ── Notification click: open app ─────────────────────────────────────────────
+// ── Notification click: open app ──
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
 

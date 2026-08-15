@@ -142,7 +142,7 @@ const StackedRings = ({ build, stop, globalGoal, isDark }) => {
       >
         <div
           style={{
-            fontFamily: "'Space Mono', monospace",
+            fontFamily: "'JetBrains Mono', monospace",
             fontSize: "2.5rem",
             fontWeight: "700",
             color: col,
@@ -165,7 +165,7 @@ const StackedRings = ({ build, stop, globalGoal, isDark }) => {
         <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
           <span
             style={{
-              fontFamily: "'Space Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: "0.68rem",
               fontWeight: "700",
               color: "#10b981",
@@ -175,7 +175,7 @@ const StackedRings = ({ build, stop, globalGoal, isDark }) => {
           </span>
           <span
             style={{
-              fontFamily: "'Space Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: "0.68rem",
               fontWeight: "700",
               color: "#ef4444",
@@ -230,7 +230,7 @@ const StatCard = ({
     </div>
     <div
       style={{
-        fontFamily: "'Space Mono', monospace",
+        fontFamily: "'JetBrains Mono', monospace",
         fontSize: "1.35rem",
         fontWeight: "700",
         color,
@@ -320,7 +320,7 @@ const FilterBar = ({ value, onChange, th }) => (
           cursor: "pointer",
           fontSize: "0.73rem",
           fontWeight: "700",
-          fontFamily: "'Syne', sans-serif",
+          fontFamily: "'Inter', sans-serif",
           background: value === f.id ? "#3b82f6" : th.quickBtn,
           color: value === f.id ? "#fff" : th.textMuted,
           boxShadow:
@@ -367,7 +367,7 @@ const HabitRank = ({ habits, type, th }) => (
             >
               <span
                 style={{
-                  fontFamily: "'Space Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: "0.65rem",
                   opacity: 0.4,
                   marginRight: "6px",
@@ -379,7 +379,7 @@ const HabitRank = ({ habits, type, th }) => (
             </span>
             <span
               style={{
-                fontFamily: "'Space Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: "0.78rem",
                 fontWeight: "700",
                 color: type === "build" ? "#10b981" : "#ef4444",
@@ -523,7 +523,7 @@ const App = () => {
   useEffect(() => {
     const link = document.createElement("link");
     link.href =
-      "https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap";
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap";
     link.rel = "stylesheet";
     document.head.appendChild(link);
 
@@ -551,7 +551,7 @@ const App = () => {
     style.id = "lambert-css";
     style.textContent = `
       *,*::before,*::after{box-sizing:border-box}
-      body{margin:0;font-family:'Syne',sans-serif}
+      body{margin:0;font-family:'Inter',sans-serif}
       @keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
       @keyframes slideInLeft{from{opacity:0;transform:translateX(-100%)}to{opacity:1;transform:translateX(0)}}
       @keyframes slideUpModal{from{opacity:0;transform:translateY(50px)}to{opacity:1;transform:translateY(0)}}
@@ -567,7 +567,7 @@ const App = () => {
       .menu-in {animation:slideInLeft  .32s cubic-bezier(.16,1,.3,1) both}
       .modal-up{animation:slideUpModal .36s cubic-bezier(.16,1,.3,1) both}
       .sp{animation:shieldPulse 2s ease-in-out infinite}
-      button{font-family:'Syne',sans-serif;transition:transform .12s,opacity .12s}
+      button{font-family:'Inter',sans-serif;transition:transform .12s,opacity .12s}
       button:active{transform:scale(.97)!important}
       input:focus,select:focus,textarea:focus{outline:none!important;border-color:#3b82f6!important;box-shadow:0 0 0 3px rgba(59,130,246,.15)!important}
       ::-webkit-scrollbar{width:3px}
@@ -591,12 +591,24 @@ const App = () => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     setPushSupported(true);
 
+    // If a new service worker takes control (i.e. a new deploy went live
+    // while this tab was already open), reload once so the fresh JS
+    // bundle actually loads instead of the stale one already in memory.
+    let didRefresh = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (didRefresh) return;
+      didRefresh = true;
+      window.location.reload();
+    });
+
     navigator.serviceWorker
       .register("/sw.js")
       .then(async (reg) => {
         // Check if already subscribed
         const existing = await reg.pushManager.getSubscription();
         if (existing) setPushSubscribed(true);
+        // Proactively check for a newer sw.js on every load
+        reg.update();
       })
       .catch((err) => console.warn("SW registration failed:", err));
   }, []);
@@ -1512,7 +1524,7 @@ const App = () => {
     border: `1px solid ${th.inputBdr}`,
     marginBottom: "12px",
     fontSize: "0.95rem",
-    fontFamily: "'Syne',sans-serif",
+    fontFamily: "'Inter',sans-serif",
     transition: "border-color .2s,box-shadow .2s",
   };
   const card = {
@@ -1542,7 +1554,7 @@ const App = () => {
     background: th.card,
     border: `1px solid ${th.cardBorder}`,
     borderRadius: "12px",
-    fontFamily: "Syne",
+    fontFamily: "Inter",
     fontSize: "0.8rem",
     color: th.text,
   };
@@ -1555,7 +1567,7 @@ const App = () => {
           minHeight: "100vh",
           background: th.bg,
           color: th.text,
-          fontFamily: "'Syne',sans-serif",
+          fontFamily: "'Inter',sans-serif",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -1726,7 +1738,7 @@ const App = () => {
           minHeight: "100vh",
           background: th.bg,
           color: th.text,
-          fontFamily: "'Syne',sans-serif",
+          fontFamily: "'Inter',sans-serif",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -1781,7 +1793,7 @@ const App = () => {
         background: th.bg,
         color: th.text,
         minHeight: "100vh",
-        fontFamily: "'Syne',sans-serif",
+        fontFamily: "'Inter',sans-serif",
         position: "relative",
       }}
     >
@@ -2237,7 +2249,7 @@ const App = () => {
                   }}
                 >
                   <span>Daily target progress</span>
-                  <span style={{ fontFamily: "'Space Mono',monospace" }}>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>
                     {Math.min(analytics.build, globalGoal)}/{globalGoal}m
                   </span>
                 </div>
@@ -2337,7 +2349,7 @@ const App = () => {
                   }}
                 >
                   <span>Build progress toward daily goal</span>
-                  <span style={{ fontFamily: "'Space Mono',monospace" }}>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>
                     {Math.min(analytics.build, globalGoal)}/{globalGoal}m
                   </span>
                 </div>
@@ -2427,7 +2439,7 @@ const App = () => {
                   </div>
                   <div
                     style={{
-                      fontFamily: "'Space Mono',monospace",
+                      fontFamily: "'JetBrains Mono',monospace",
                       fontSize: "1.5rem",
                       fontWeight: "700",
                       color: "#fbbf24",
@@ -2469,7 +2481,7 @@ const App = () => {
                   </div>
                   <div
                     style={{
-                      fontFamily: "'Space Mono',monospace",
+                      fontFamily: "'JetBrains Mono',monospace",
                       fontSize: "1.5rem",
                       fontWeight: "700",
                       color: "#8b5cf6",
@@ -2543,7 +2555,7 @@ const App = () => {
                     </div>
                     <div
                       style={{
-                        fontFamily: "'Space Mono',monospace",
+                        fontFamily: "'JetBrains Mono',monospace",
                         fontSize: "0.88rem",
                         fontWeight: "700",
                         color: th.text,
@@ -2754,7 +2766,7 @@ const App = () => {
                 >
                   <span
                     style={{
-                      fontFamily: "'Space Mono',monospace",
+                      fontFamily: "'JetBrains Mono',monospace",
                       fontSize: "0.88rem",
                       fontWeight: "700",
                       color:
@@ -2813,7 +2825,7 @@ const App = () => {
                     fontWeight: "700",
                     color: th.text,
                     marginTop: "2px",
-                    fontFamily: "'Space Mono',monospace",
+                    fontFamily: "'JetBrains Mono',monospace",
                   }}
                 >
                   <span style={{ color: "#10b981" }}>
@@ -2846,7 +2858,7 @@ const App = () => {
                   </div>
                   <div
                     style={{
-                      fontFamily: "'Space Mono',monospace",
+                      fontFamily: "'JetBrains Mono',monospace",
                       fontSize: "1rem",
                       fontWeight: "700",
                       color: "#fbbf24",
@@ -2898,90 +2910,102 @@ const App = () => {
               >
                 BUILD vs STOP — {filterLabel.toUpperCase()}
               </p>
-              <ResponsiveContainer width="100%" height={290}>
-                <ComposedChart
-                  data={chartData}
-                  margin={{ top: 10, right: 8, bottom: 8, left: -12 }}
+              <div
+                style={{
+                  overflowX: "auto",
+                  WebkitOverflowScrolling: "touch",
+                  marginLeft: "-4px",
+                  paddingLeft: "4px",
+                }}
+              >
+                <div
+                  style={{
+                    minWidth: `${Math.max(chartData.length * 46, 300)}px`,
+                  }}
                 >
-                  <CartesianGrid vertical={false} stroke={th.gridLine} />
-                  <XAxis
-                    dataKey="name"
-                    tick={{
-                      fontSize: 8,
-                      fill: th.textMuted,
-                      fontFamily: "Syne",
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={0}
-                    angle={-40}
-                    textAnchor="end"
-                    height={48}
-                  />
-                  <YAxis
-                    tick={{
-                      fontSize: 9,
-                      fill: th.textMuted,
-                      fontFamily: "Syne",
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    contentStyle={ttip}
-                    formatter={(v, name) => [
-                      `${v}m`,
-                      name === "build" ? "Build" : "Stop",
-                    ]}
-                  />
-                  <Bar
-                    dataKey="build"
-                    name="Build"
-                    fill="#10b981"
-                    barSize={18}
-                    radius={[5, 5, 0, 0]}
-                    opacity={0.9}
-                  />
-                  <Bar
-                    dataKey="stop"
-                    name="Stop"
-                    fill="#ef4444"
-                    barSize={18}
-                    radius={[5, 5, 0, 0]}
-                    opacity={0.9}
-                  />
-                  {/* Goal reference */}
-                  <ReferenceLine
-                    y={globalGoal}
-                    stroke="#fbbf24"
-                    strokeDasharray="6 4"
-                    strokeWidth={1.5}
-                    label={{
-                      value: `Goal ${globalGoal}m`,
-                      fill: "#fbbf24",
-                      fontSize: 9,
-                      position: "insideTopRight",
-                      fontFamily: "Syne",
-                    }}
-                  />
-                  {/* Average reference */}
-                  {filterAvg !== null && (
-                    <ReferenceLine
-                      y={filterAvg}
-                      stroke="#8b5cf6"
-                      strokeDasharray="4 3"
-                      strokeWidth={1.5}
-                      label={{
-                        value: `Avg ${filterAvg}m`,
-                        fill: "#8b5cf6",
-                        fontSize: 9,
-                        position: "insideTopLeft",
-                        fontFamily: "Syne",
-                      }}
-                    />
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height={290}>
+                    <ComposedChart
+                      data={chartData}
+                      margin={{ top: 10, right: 8, bottom: 8, left: -12 }}
+                    >
+                      <CartesianGrid vertical={false} stroke={th.gridLine} />
+                      <XAxis
+                        dataKey="name"
+                        tick={{
+                          fontSize: 9,
+                          fill: th.textMuted,
+                          fontFamily: "Inter",
+                        }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0}
+                      />
+                      <YAxis
+                        tick={{
+                          fontSize: 9,
+                          fill: th.textMuted,
+                          fontFamily: "Inter",
+                        }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip
+                        contentStyle={ttip}
+                        formatter={(v, name) => [
+                          `${v}m`,
+                          name === "build" ? "Build" : "Stop",
+                        ]}
+                      />
+                      <Bar
+                        dataKey="build"
+                        name="Build"
+                        fill="#10b981"
+                        barSize={18}
+                        radius={[5, 5, 0, 0]}
+                        opacity={0.9}
+                      />
+                      <Bar
+                        dataKey="stop"
+                        name="Stop"
+                        fill="#ef4444"
+                        barSize={18}
+                        radius={[5, 5, 0, 0]}
+                        opacity={0.9}
+                      />
+                      {/* Goal reference */}
+                      <ReferenceLine
+                        y={globalGoal}
+                        stroke="#fbbf24"
+                        strokeDasharray="6 4"
+                        strokeWidth={1.5}
+                        label={{
+                          value: `Goal ${globalGoal}m`,
+                          fill: "#fbbf24",
+                          fontSize: 9,
+                          position: "insideTopRight",
+                          fontFamily: "Inter",
+                        }}
+                      />
+                      {/* Average reference */}
+                      {filterAvg !== null && (
+                        <ReferenceLine
+                          y={filterAvg}
+                          stroke="#8b5cf6"
+                          strokeDasharray="4 3"
+                          strokeWidth={1.5}
+                          label={{
+                            value: `Avg ${filterAvg}m`,
+                            fill: "#8b5cf6",
+                            fontSize: 9,
+                            position: "insideTopLeft",
+                            fontFamily: "Inter",
+                          }}
+                        />
+                      )}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
               <div
                 style={{
                   display: "flex",
@@ -3078,7 +3102,7 @@ const App = () => {
                   <div key={label} style={{ flex: 1, textAlign: "center" }}>
                     <div
                       style={{
-                        fontFamily: "'Space Mono',monospace",
+                        fontFamily: "'JetBrains Mono',monospace",
                         fontSize: "1.6rem",
                         fontWeight: "700",
                         color,
@@ -3512,7 +3536,7 @@ const App = () => {
                   border: "none",
                   cursor: goalText.trim() ? "pointer" : "not-allowed",
                   opacity: goalText.trim() ? 1 : 0.5,
-                  fontFamily: "'Syne',sans-serif",
+                  fontFamily: "'Inter',sans-serif",
                   letterSpacing: "0.5px",
                   transition: "all .2s",
                 }}
@@ -3624,7 +3648,7 @@ const App = () => {
                 value={globalGoal}
                 style={{
                   ...inp,
-                  fontFamily: "'Space Mono',monospace",
+                  fontFamily: "'JetBrains Mono',monospace",
                   fontSize: "1.6rem",
                   fontWeight: "700",
                   textAlign: "center",
@@ -3911,7 +3935,7 @@ const App = () => {
                     </span>
                     <span
                       style={{
-                        fontFamily: "'Space Mono',monospace",
+                        fontFamily: "'JetBrains Mono',monospace",
                         fontSize: "0.88rem",
                         fontWeight: "700",
                         color,
@@ -4051,7 +4075,7 @@ const App = () => {
                         ? "none"
                         : "0 4px 20px rgba(59,130,246,.25)",
                       transition: "all .25s",
-                      fontFamily: "'Syne',sans-serif",
+                      fontFamily: "'Inter',sans-serif",
                     }}
                   >
                     {pushLoading
@@ -4284,7 +4308,7 @@ const App = () => {
                         fontSize: "0.65rem",
                         padding: "2px 4px",
                         borderRadius: "6px",
-                        fontFamily: "'Syne',sans-serif",
+                        fontFamily: "'Inter',sans-serif",
                         transition: "color 0.2s",
                       }}
                     >
@@ -4370,7 +4394,7 @@ const App = () => {
                   color: th.text,
                   border: `1px solid ${th.inputBdr}`,
                   fontSize: "0.92rem",
-                  fontFamily: "'Syne',sans-serif",
+                  fontFamily: "'Inter',sans-serif",
                   flex: 1,
                   marginBottom: 0,
                   resize: "none",
@@ -4398,7 +4422,7 @@ const App = () => {
                       : "pointer",
                   fontSize: "0.88rem",
                   whiteSpace: "nowrap",
-                  fontFamily: "'Syne',sans-serif",
+                  fontFamily: "'Inter',sans-serif",
                 }}
               >
                 Send
