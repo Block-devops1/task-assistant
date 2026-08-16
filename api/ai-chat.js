@@ -3,9 +3,9 @@
 // Receives the conversation history from the client (fetched from Supabase),
 // sends it to Groq, returns Lambert's reply.
 
-import { checkAccess } from "./_lib/checkAccess.js";
+const { checkAccess } = require("./_lib/checkAccess.js");
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -271,4 +271,4 @@ Use these to give the user a realistic picture of where they're heading. Don't s
     reply:
       "Lambert's temporarily overloaded — Groq is rate limiting. Try again in 30 seconds.",
   });
-}
+};

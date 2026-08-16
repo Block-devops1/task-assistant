@@ -5,7 +5,7 @@
 // and only takes effect 24 hours later. Raising the dial again before
 // that delay elapses cancels the pending decrease.
 
-import { createClient } from "@supabase/supabase-js";
+const { createClient } = require("@supabase/supabase-js");
 
 const supabaseAdmin = createClient(
   process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -14,7 +14,7 @@ const supabaseAdmin = createClient(
 
 const DELAY_HOURS = 24;
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
   const { newLevel } = req.body;
@@ -124,4 +124,4 @@ export default async function handler(req, res) {
     pendingLevel: newLevel,
     effectiveAt,
   });
-}
+};

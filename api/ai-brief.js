@@ -1,9 +1,9 @@
 // api/ai-brief.js — Vercel Serverless Function
 // Lambert AI Coach — powered by Groq (free), habit-aware, roasts when deserved.
 
-import { checkAccess } from "./_lib/checkAccess.js";
+const { checkAccess } = require("./_lib/checkAccess.js");
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -162,4 +162,4 @@ Do not use filler phrases like "Great job" or "Keep it up." Be Lambert.`;
           : `${efficiency}% efficiency. That's not a number to be proud of. Fix it.`,
     });
   }
-}
+};

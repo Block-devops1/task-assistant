@@ -7,7 +7,7 @@
 // routed to the higher-quota model so they can never touch the admin's
 // llama-3.3-70b-versatile daily limit.
 
-import { createClient } from "@supabase/supabase-js";
+const { createClient } = require("@supabase/supabase-js");
 
 const supabaseAdmin = createClient(
   process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL,
@@ -16,7 +16,7 @@ const supabaseAdmin = createClient(
 
 const DAILY_CAP_NON_ADMIN = 150; // generous safety net, not a real-world limiter at small scale
 
-export async function checkAccess(authHeader) {
+async function checkAccess(authHeader) {
   const token = (authHeader || "").replace("Bearer ", "");
   if (!token) return { ok: false, status: 401, error: "Missing auth token" };
 
@@ -98,3 +98,5 @@ export async function checkAccess(authHeader) {
     strictnessLevel,
   };
 }
+
+module.exports = { checkAccess };

@@ -14,8 +14,8 @@
 //   npx web-push generate-vapid-keys
 // Then add them to Vercel environment variables.
 
-import { createClient } from "@supabase/supabase-js";
-import webpush from "web-push";
+const { createClient } = require("@supabase/supabase-js");
+const webpush = require("web-push");
 
 webpush.setVapidDetails(
   process.env.VAPID_MAILTO || "mailto:you@example.com",
@@ -179,7 +179,7 @@ async function generateWeeklyReport(habits) {
 
 // ── Main handler ─────────────────────────────────────────────────────────────
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Allow manual trigger via POST (for testing) or cron GET
   if (req.method !== "GET" && req.method !== "POST")
     return res.status(405).end();
@@ -382,4 +382,4 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({ ok: true, results });
-}
+};

@@ -3,15 +3,15 @@
 // GET /api/report-pdf?week=2026-08-09 (or omit `week` for the latest one)
 // Requires Authorization: Bearer <session token>
 
-import { createClient } from "@supabase/supabase-js";
-import PDFDocument from "pdfkit";
+const { createClient } = require("@supabase/supabase-js");
+const PDFDocument = require("pdfkit");
 
 const supabaseAdmin = createClient(
   process.env.REACT_APP_SUPABASE_URL || process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).end();
 
   // ── Verify identity + approval only — this is a document export,
@@ -139,4 +139,4 @@ export default async function handler(req, res) {
   }
 
   doc.end();
-}
+};
