@@ -426,6 +426,8 @@ const App = () => {
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [strictnessLevel, setStrictnessLevel] = useState(1);
+  const [weeklyReport, setWeeklyReport] = useState(null);
+  const [reportPdfLoading, setReportPdfLoading] = useState(false);
   const [pendingStrictness, setPendingStrictness] = useState(null);
   const [pendingStrictnessAt, setPendingStrictnessAt] = useState(null);
   const [usedStrictnessGrace, setUsedStrictnessGrace] = useState(false);
@@ -663,6 +665,52 @@ const App = () => {
   }, [session]);
 
   // ── Strictness dial: request a change (raising instant, lowering delayed after first grace) ──
+  // ── Weekly Report: fetch latest stored report ──
+  const fetchWeeklyReport = async () => {
+    if (!session) return;
+    const { data } = await supabase
+      .from("weekly_reports")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("week_start", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) setWeeklyReport(data);
+  };
+  useEffect(() => {
+    if (session) fetchWeeklyReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  // ── Weekly Report: download as PDF ──
+  const downloadReportPdf = async () => {
+    if (!session || !weeklyReport) return;
+    setReportPdfLoading(true);
+    try {
+      const res = await fetch(
+        `/api/report-pdf?week=${weeklyReport.week_start}`,
+        {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        },
+      );
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lambert-report-${weeklyReport.week_start}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Couldn't generate the PDF. Try again.");
+    } finally {
+      setReportPdfLoading(false);
+    }
+  };
+
   const requestStrictnessChange = async (newLevel) => {
     if (!session) return;
     try {
@@ -1390,6 +1438,38 @@ const App = () => {
   }, [tasks.length, session]); // eslint-disable-line
 
   // ── Push: subscribe ──
+  // ── Push: update reminder time for an already-subscribed user ──
+  // Previously, changing the hour while already subscribed did nothing —
+  // the button only offered Unsubscribe, so the new hour never reached
+  // the database. This re-saves the existing push subscription with the
+  // new hour, no need to unsubscribe/resubscribe.
+  const updateReminderTime = async (newHour) => {
+    if (!session) return;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (!sub) return; // not actually subscribed at the browser level
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const res = await fetch("/api/push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "subscribe",
+          subscription: sub.toJSON(),
+          userId: session.user.id,
+          reminderHour: newHour,
+          reminderMinute: 0,
+          timezone: tz,
+        }),
+      });
+      if (res.ok) {
+        setPushStatus(`✓ Reminder time updated.`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handlePushSubscribe = async () => {
     if (!session || pushLoading) return;
     setPushLoading(true);
@@ -2833,6 +2913,134 @@ const App = () => {
         {/* ════ ANALYTICS ════ */}
         {activeTab === "analytics" && (
           <div className="fu">
+            {/* Weekly Report */}
+            {weeklyReport && (
+              <div style={{ ...card, marginBottom: "14px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "0.6rem",
+                      color: th.textMuted,
+                      letterSpacing: "2px",
+                    }}
+                  >
+                    WEEKLY REPORT — WEEK OF{" "}
+                    {new Date(weeklyReport.week_start).toLocaleDateString(
+                      "en",
+                      {
+                        month: "short",
+                        day: "numeric",
+                      },
+                    )}
+                  </p>
+                  <button
+                    onClick={downloadReportPdf}
+                    disabled={reportPdfLoading}
+                    style={{
+                      background: "rgba(59,130,246,.1)",
+                      border: "1px solid rgba(59,130,246,.25)",
+                      borderRadius: "8px",
+                      padding: "6px 12px",
+                      color: "#3b82f6",
+                      fontSize: "0.68rem",
+                      fontWeight: "700",
+                      cursor: reportPdfLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {reportPdfLoading ? "Generating..." : "Download PDF"}
+                  </button>
+                </div>
+
+                <div
+                  style={{ display: "flex", gap: "10px", marginBottom: "12px" }}
+                >
+                  <StatCard
+                    icon={TrendingUp}
+                    label="Build"
+                    value={weeklyReport.build_total}
+                    unit="m"
+                    color="#10b981"
+                    th={th}
+                  />
+                  <StatCard
+                    icon={Activity}
+                    label="Stop"
+                    value={weeklyReport.stop_total}
+                    unit="m"
+                    color="#ef4444"
+                    th={th}
+                  />
+                  <StatCard
+                    icon={Award}
+                    label="Eff"
+                    value={weeklyReport.efficiency}
+                    unit="%"
+                    color="#3b82f6"
+                    th={th}
+                  />
+                </div>
+
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    lineHeight: 1.55,
+                    color: th.text,
+                    margin: "0 0 14px",
+                  }}
+                >
+                  "{weeklyReport.lambert_summary}"
+                </p>
+
+                {weeklyReport.top_disruptors &&
+                  weeklyReport.top_disruptors.length > 0 && (
+                    <div>
+                      <p
+                        style={{
+                          fontSize: "0.6rem",
+                          color: "#ef4444",
+                          letterSpacing: "1.5px",
+                          margin: "0 0 8px",
+                        }}
+                      >
+                        TOP DISRUPTORS — HOW TO BREAK THEM
+                      </p>
+                      {weeklyReport.top_disruptors.map((d, i) => (
+                        <div key={i} style={{ marginBottom: "10px" }}>
+                          <div
+                            style={{
+                              fontSize: "0.8rem",
+                              fontWeight: "700",
+                              color: th.text,
+                            }}
+                          >
+                            {d.subject} — {d.minutes}m
+                          </div>
+                          {d.breakStrategy && (
+                            <div
+                              style={{
+                                fontSize: "0.75rem",
+                                color: th.textMuted,
+                                marginTop: "2px",
+                              }}
+                            >
+                              → {d.breakStrategy}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+              </div>
+            )}
+
             {/* Filter Bar */}
             <FilterBar value={filter} onChange={setFilter} th={th} />
 
@@ -4068,7 +4276,10 @@ const App = () => {
                     ].map(([h, label]) => (
                       <button
                         key={h}
-                        onClick={() => setReminderHour(h)}
+                        onClick={() => {
+                          setReminderHour(h);
+                          if (pushSubscribed) updateReminderTime(h);
+                        }}
                         style={{
                           padding: "8px 14px",
                           borderRadius: "10px",

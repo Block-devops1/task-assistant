@@ -67,10 +67,11 @@ async function sendPush(subscription, payload) {
   }
 }
 
-// ── Weekly report via Groq ────────────────────────────────────────────────────
+// ── Full weekly report via Groq — structured data + disruptor-break
+// strategies + short push teaser, all generated once and stored ──
 
 async function generateWeeklyReport(habits) {
-  if (!process.env.GROQ_API_KEY || !habits.length) return null;
+  if (!process.env.GROQ_API_KEY) return null;
 
   const buildAgg = {},
     stopAgg = {};
@@ -82,18 +83,36 @@ async function generateWeeklyReport(habits) {
     }
   });
 
-  const topBuild = Object.entries(buildAgg)
+  const topBuildList = Object.entries(buildAgg)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([n, v]) => `${n} ${v}m`)
-    .join(", ");
-  const topStop = Object.entries(stopAgg)
+    .slice(0, 5)
+    .map(([subject, minutes]) => ({ subject, minutes }));
+  const topDisruptorList = Object.entries(stopAgg)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([n, v]) => `${n} ${v}m`)
-    .join(", ");
+    .slice(0, 5)
+    .map(([subject, minutes]) => ({ subject, minutes }));
+
   const totalBuild = Object.values(buildAgg).reduce((s, v) => s + v, 0);
   const totalStop = Object.values(stopAgg).reduce((s, v) => s + v, 0);
+
+  const topBuildStr =
+    topBuildList.map((d) => `${d.subject} ${d.minutes}m`).join(", ") ||
+    "nothing";
+  const topDisruptorStr =
+    topDisruptorList.map((d) => `${d.subject} ${d.minutes}m`).join(", ") ||
+    "none";
+
+  if (!habits.length) {
+    return {
+      totalBuild: 0,
+      totalStop: 0,
+      topBuild: [],
+      topDisruptors: [],
+      lambertSummary:
+        "No logs this week. Nothing to analyze because nothing happened.",
+      pushTeaser: "No logs this week — start tomorrow.",
+    };
+  }
 
   try {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -104,24 +123,57 @@ async function generateWeeklyReport(habits) {
       },
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
-        max_tokens: 120,
+        max_tokens: 500,
         messages: [
           {
             role: "system",
             content:
-              "You are Lambert — a sharp, direct habit coach. Write a 2-sentence weekly report notification. No bullet points. Be blunt, data-driven, and end with one specific action for next week. Under 140 chars total.",
+              'You are Lambert, a sharp direct habit coach writing a weekly report. Respond ONLY with valid JSON, no markdown, no code fences, exactly this shape: {"summary": "3-5 sentence blunt analysis of the week, referencing specific numbers", "teaser": "one sentence under 140 characters for a push notification", "disruptorStrategies": [{"subject": "exact disruptor name", "strategy": "one concrete, specific action to interrupt or replace this habit next week, referencing one of the user\'s actual build habits as a replacement where relevant"}]}. Cover every disruptor listed, in the same order. If there are no disruptors, return an empty array for disruptorStrategies.',
           },
           {
             role: "user",
-            content: `Week summary: Built ${totalBuild}m (${topBuild || "nothing"}). Lost ${totalStop}m to disruptors (${topStop || "none"}). Write the push notification body.`,
+            content: `Week: Built ${totalBuild}m total (${topBuildStr}). Lost ${totalStop}m to disruptors (${topDisruptorStr}). Build habits available as replacements: ${topBuildStr}.`,
           },
         ],
       }),
     });
     const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() || null;
-  } catch (_) {
-    return `Built ${totalBuild}m, lost ${totalStop}m. Review and recalibrate for next week.`;
+    const raw = data.choices?.[0]?.message?.content?.trim() || "{}";
+    const parsed = JSON.parse(raw.replace(/^```json\n?|\n?```$/g, ""));
+
+    const strategyMap = {};
+    (parsed.disruptorStrategies || []).forEach((d) => {
+      strategyMap[d.subject] = d.strategy;
+    });
+
+    return {
+      totalBuild,
+      totalStop,
+      topBuild: topBuildList,
+      topDisruptors: topDisruptorList.map((d) => ({
+        ...d,
+        breakStrategy: strategyMap[d.subject] || null,
+      })),
+      lambertSummary:
+        parsed.summary || `Built ${totalBuild}m, lost ${totalStop}m this week.`,
+      pushTeaser: (
+        parsed.teaser ||
+        `Built ${totalBuild}m, lost ${totalStop}m. Review your week.`
+      ).slice(0, 140),
+    };
+  } catch (err) {
+    console.error("Weekly report generation failed:", err.message);
+    return {
+      totalBuild,
+      totalStop,
+      topBuild: topBuildList,
+      topDisruptors: topDisruptorList.map((d) => ({
+        ...d,
+        breakStrategy: null,
+      })),
+      lambertSummary: `Built ${totalBuild}m, lost ${totalStop}m. Review and recalibrate for next week.`,
+      pushTeaser: `Built ${totalBuild}m, lost ${totalStop}m this week.`,
+    };
   }
 }
 
@@ -180,14 +232,85 @@ export default async function handler(req, res) {
 
     // ── 1. Weekly report (Sunday) ────────────────────────────────────────────
     if (sunday) {
-      const weekStart = new Date(Date.now() - 7 * 86400000).toISOString();
+      const weekStartDate = new Date(Date.now() - 7 * 86400000);
+      const weekStart = weekStartDate.toISOString();
+      const weekStartStr = weekStartDate.toISOString().slice(0, 10);
       const weekLogs = (logs || []).filter((l) => l.created_at >= weekStart);
-      const reportBody = await generateWeeklyReport(weekLogs);
+      const report = await generateWeeklyReport(weekLogs);
 
-      if (reportBody) {
+      if (report) {
+        // Compute week-over-week build delta against the prior stored report
+        const { data: prevReport } = await supabase
+          .from("weekly_reports")
+          .select("build_total")
+          .eq("user_id", sub.user_id)
+          .order("week_start", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const weekOverWeekPct =
+          prevReport && prevReport.build_total > 0
+            ? Math.round(
+                ((report.totalBuild - prevReport.build_total) /
+                  prevReport.build_total) *
+                  100,
+              )
+            : null;
+
+        // Pull consistency/win-rate/streak from the same 14-day window we already fetched
+        const uniqueDays = new Set(
+          (logs || []).map((l) => l.created_at?.slice(0, 10)),
+        ).size;
+        const consistency = Math.min(100, Math.round((uniqueDays / 14) * 100));
+        const byDay = {};
+        (logs || []).forEach((l) => {
+          const d = l.created_at?.slice(0, 10);
+          if (!d) return;
+          if (!byDay[d]) byDay[d] = { build: 0, stop: 0 };
+          if (l.habit_type === "continue") byDay[d].build += l.duration;
+          else byDay[d].stop += l.duration;
+        });
+        const days = Object.values(byDay);
+        const winRate = days.length
+          ? Math.round(
+              (days.filter((d) => d.build > d.stop).length / days.length) * 100,
+            )
+          : 0;
+        const efficiency =
+          report.totalBuild + report.totalStop > 0
+            ? Math.max(
+                0,
+                Math.round(
+                  ((report.totalBuild - report.totalStop) /
+                    (report.totalBuild + report.totalStop)) *
+                    100,
+                ),
+              )
+            : 0;
+
+        await supabase.from("weekly_reports").upsert(
+          [
+            {
+              user_id: sub.user_id,
+              week_start: weekStartStr,
+              build_total: report.totalBuild,
+              stop_total: report.totalStop,
+              efficiency,
+              consistency,
+              win_rate: winRate,
+              streak: 0, // filled client-side where streak is already computed live
+              week_over_week_pct: weekOverWeekPct,
+              top_build: report.topBuild,
+              top_disruptors: report.topDisruptors,
+              lambert_summary: report.lambertSummary,
+              push_teaser: report.pushTeaser,
+            },
+          ],
+          { onConflict: "user_id,week_start" },
+        );
+
         const result = await sendPush(sub.subscription, {
           title: "⚡ Lambert Weekly Report",
-          body: reportBody,
+          body: report.pushTeaser,
           tag: "weekly-report",
           url: "/?tab=analytics",
         });
