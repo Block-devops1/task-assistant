@@ -67,7 +67,7 @@ async function checkAccess(authHeader) {
       ok: true,
       userId: user.id,
       isAdmin: true,
-      model: "llama-3.3-70b-versatile",
+      model: "gpt-oss-120b",
       strictnessLevel,
     };
   }
@@ -94,7 +94,7 @@ async function checkAccess(authHeader) {
     ok: true,
     userId: user.id,
     isAdmin: false,
-    model: "llama-3.1-8b-instant",
+    model: "qwen3.6-27b",
     strictnessLevel,
   };
 }
