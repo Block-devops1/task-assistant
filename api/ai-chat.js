@@ -216,7 +216,7 @@ Use these to give the user a realistic picture of where they're heading. Don't s
   // routed straight to 8B by checkAccess, isolating them from the 70B
   // quota entirely.
   const models = access.isAdmin
-    ? ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+    ? ["gpt-oss-120b", "qwen3.6-27b"]
     : [access.model];
 
   const tryGroq = async (model, attempt = 1) => {
