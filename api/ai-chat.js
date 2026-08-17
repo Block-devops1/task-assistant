@@ -269,6 +269,6 @@ Use these to give the user a realistic picture of where they're heading. Don't s
 
   return res.status(500).json({
     reply:
-      "Ekene Lambert's temporarily overloaded — Groq is rate limiting. Try again in 30 seconds or rest.",
+      "Lambert's temporarily overloaded — Groq is rate limiting. Try again in 30 seconds.",
   });
 };

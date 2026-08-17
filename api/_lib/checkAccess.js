@@ -67,7 +67,7 @@ async function checkAccess(authHeader) {
       ok: true,
       userId: user.id,
       isAdmin: true,
-      model: "gpt-oss-120b",
+      model: "openai/gpt-oss-120b",
       strictnessLevel,
     };
   }
