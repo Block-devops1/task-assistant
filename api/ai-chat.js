@@ -201,7 +201,7 @@ Use these to give the user a realistic picture of where they're heading. Don't s
 - You are Lambert. Stay in character.
 - Your tone never softens over time. You remain sharp, direct and data-driven no matter how long the conversation goes. You can be human - joke, laugh, vibe, roast - but the moments habits, goals or consistency come up, you lock back in. Accountability is non-negotiable, a joke or a vulnerable never earns a free pass on the numbers.
 - You think in systems, not feelings. When the user brings a problem, diagnose it, strategize and build a plan. Push them to think logically: cause and effect, patterns, priorities, trade-offs. If they're been emotional, aknowledge it just briefly then call it out and redirect to what data and logic actually say. Your job is to sharpen their thinking , not just their habits. Over time, train them to ask "why is this happening" before "how do i feel about it".
-- Always help user get their priorities right - what matters most vs what feels urgent.  When they share plans or decisions, break them down to the long-term cause and effect of their actions, not just the immediate outcome. Factor in ROI on their time, energy and focus - Push them to ask "is this the highest or best return of my commitment or investment right now?" before commiting to anything.`;
+- Always help user get their priorities right - what matters most vs what feels urgent.  When they share plans or decisions, break them down the ;ong-term cause and effect of their actions, not just the immediate outcome. Factor in ROI on their time, energy and focus - Push them to ask "is this the highest or best return of my commitment or investment right now?" before commiting to anything.`;
 
   // ── Build message array: system + history + new message ──
   // Groq uses OpenAI format — system role is separate
@@ -211,10 +211,9 @@ Use these to give the user a realistic picture of where they're heading. Don't s
     { role: "user", content: message },
   ];
 
-  // Admin gets 70B with 8B fallback (protects quality without risking
-  // total failure if the 70B daily cap is hit). Non-admins are already
-  // routed straight to 8B by checkAccess, isolating them from the 70B
-  // quota entirely.
+  // Admin gets gpt-oss-120b with qwen3.6-27b fallback — a separate quota
+  // bucket from what non-admins use, so a rate limit on one never touches
+  // the other. Non-admins are already routed to gpt-oss-20b by checkAccess.
   const models = access.isAdmin
     ? ["openai/gpt-oss-120b", "qwen/qwen3.6-27b"]
     : [access.model];
@@ -231,44 +230,65 @@ Use these to give the user a realistic picture of where they're heading. Don't s
         body: JSON.stringify({
           model,
           max_tokens: 1000,
+          // gpt-oss models: low reasoning effort keeps chain-of-thought
+          // minimal so it doesn't leak into the visible reply. Qwen
+          // models: "none" disables reasoning entirely for this use case
+          // (Lambert doesn't need visible step-by-step reasoning, just
+          // a direct coaching reply).
+          reasoning_effort: model.includes("qwen") ? "none" : "low",
           messages: [{ role: "system", content: systemPrompt }, ...messages],
         }),
       },
     );
     if (!response.ok) {
       const errBody = await response.json().catch(() => ({}));
-      throw new Error(
+      const err = new Error(
         `Groq ${response.status}: ${errBody?.error?.message || "unknown"}`,
       );
+      err.status = response.status;
+      throw err;
     }
     return response.json();
   };
 
+  let lastError = null;
+
   for (const model of models) {
     try {
-      // Try once, then retry once on failure before moving to fallback model
       let data;
       try {
         data = await tryGroq(model);
       } catch (firstErr) {
-        console.warn(
-          `Groq first attempt failed (${model}):`,
-          firstErr.message,
-          "— retrying...",
-        );
+        lastError = firstErr;
+        console.warn(`Groq first attempt failed (${model}):`, firstErr.message);
+        // 404 = model not found/not allowed — permanent, retrying won't
+        // help. Only retry on genuinely transient errors (429, 5xx).
+        if (firstErr.status === 404) throw firstErr;
+        console.warn("— retrying...");
         await new Promise((r) => setTimeout(r, 1500));
         data = await tryGroq(model);
       }
       const reply = data.choices?.[0]?.message?.content || "";
       return res.status(200).json({ reply });
     } catch (err) {
+      lastError = err;
       console.error(`Groq failed on model ${model}:`, err.message);
       // Try next model
     }
   }
 
+  // Surface the real reason instead of always guessing "rate limiting" —
+  // a 404 model_not_found is a completely different problem (usually a
+  // missing entry in Groq's project Allowed Models list) than an actual
+  // 429 rate limit, and telling the truth here is what makes this
+  // debuggable instead of a guessing game.
+  const isRateLimit = lastError?.status === 429;
+  const isModelNotFound = lastError?.status === 404;
   return res.status(500).json({
-    reply:
-      "Lambert's temporarily overloaded — Groq is rate limiting. Try again in 30 seconds.",
+    reply: isRateLimit
+      ? "Lambert's temporarily overloaded — Groq is rate limiting. Try again in 30 seconds."
+      : isModelNotFound
+        ? `Lambert can't reach his model right now (model not found/allowed on this Groq project). Real error: ${lastError?.message || "unknown"}`
+        : `Lambert hit an unexpected error. Real error: ${lastError?.message || "unknown"}`,
   });
 };

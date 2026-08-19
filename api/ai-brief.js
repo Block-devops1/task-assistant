@@ -141,10 +141,12 @@ Do not use filler phrases like "Great job" or "Keep it up." Be Lambert.`;
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          // Admin gets 70B (higher quality); non-admins are routed to
-          // 8B by checkAccess, isolating them from the 70B quota.
+          // Admin gets gpt-oss-120b (higher quality); non-admins are
+          // routed to gpt-oss-20b by checkAccess, isolating them from
+          // the 120b quota.
           model: access.model,
           max_tokens: 300,
+          reasoning_effort: access.model.includes("qwen") ? "none" : "low",
           messages: [{ role: "user", content: prompt }],
         }),
       },

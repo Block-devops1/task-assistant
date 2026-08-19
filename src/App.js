@@ -618,6 +618,26 @@ const App = () => {
       .catch((err) => console.warn("SW registration failed:", err));
   }, []);
 
+  // ── Fetch the actual saved reminder hour from Supabase — the browser-level
+  // subscription check above only tells us THAT we're subscribed, not WHAT
+  // hour was saved. Without this, the UI always shows the hardcoded default
+  // instead of the real saved value. ──
+  const fetchPushSubscriptionDetails = async () => {
+    if (!session) return;
+    const { data } = await supabase
+      .from("push_subscriptions")
+      .select("reminder_hour")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (data && typeof data.reminder_hour === "number") {
+      setReminderHour(data.reminder_hour);
+    }
+  };
+  useEffect(() => {
+    if (session) fetchPushSubscriptionDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
   // ── Auth ──
   useEffect(() => {
     supabase.auth
@@ -4298,6 +4318,37 @@ const App = () => {
                         {label}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Custom time — any hour, not just the presets above */}
+                  <div style={{ marginBottom: "18px" }}>
+                    <label
+                      style={{
+                        fontSize: "0.6rem",
+                        color: th.textMuted,
+                        letterSpacing: "2px",
+                        display: "block",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      OR PICK A CUSTOM TIME
+                    </label>
+                    <input
+                      type="time"
+                      value={`${String(reminderHour).padStart(2, "0")}:00`}
+                      onChange={(e) => {
+                        const h = parseInt(e.target.value.split(":")[0], 10);
+                        if (!isNaN(h)) {
+                          setReminderHour(h);
+                          if (pushSubscribed) updateReminderTime(h);
+                        }
+                      }}
+                      style={{
+                        ...inp,
+                        marginBottom: 0,
+                        width: "160px",
+                      }}
+                    />
                   </div>
 
                   {/* Subscribe / Unsubscribe button */}
