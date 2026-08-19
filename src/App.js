@@ -36,6 +36,7 @@ import {
   Copy,
   Check,
   Mic,
+  Edit3,
 } from "lucide-react";
 import {
   XAxis,
@@ -444,6 +445,7 @@ const App = () => {
   const [logDescription, setLogDescription] = useState("");
   const [voiceField, setVoiceField] = useState(null); // 'subject' | 'description' | null — which field is currently listening
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [editingLogId, setEditingLogId] = useState(null); // non-null when the log modal is editing an existing entry instead of creating a new one
   const [shieldActive, setShieldActive] = useState(false);
   const [globalGoal, setGlobalGoal] = useState(180);
   const [aiText, setAiText] = useState("");
@@ -820,7 +822,13 @@ const App = () => {
     if (error) console.error(error.message);
     if (data) setTasks(data);
   };
-  const deleteLog = async (id) => {
+  const deleteLog = async (id, subject) => {
+    if (
+      !window.confirm(
+        `Delete "${subject}"? This can't be undone — you'd have to log it again from scratch.`,
+      )
+    )
+      return;
     await supabase.from("habit_logs").delete().eq("id", id);
     fetchLogs();
   };
@@ -1626,6 +1634,7 @@ const App = () => {
   const handleLogHabit = async () => {
     if (!subject || !duration) return;
     if (
+      !editingLogId &&
       analytics.isThreat &&
       !window.confirm(
         `⚠ Lambert Shield: "${analytics.disruptor}" is your #1 disruptor. Log anyway?`,
@@ -1633,15 +1642,20 @@ const App = () => {
     )
       return;
     setIsLogging(true);
-    const { error } = await supabase.from("habit_logs").insert([
-      {
-        subject: subject.replace(/[<>]/g, "").trim(),
-        duration: parseInt(duration),
-        habit_type: habitType,
-        description: logDescription.replace(/[<>]/g, "").trim() || null,
-        user_id: session.user.id,
-      },
-    ]);
+
+    const payload = {
+      subject: subject.replace(/[<>]/g, "").trim(),
+      duration: parseInt(duration),
+      habit_type: habitType,
+      description: logDescription.replace(/[<>]/g, "").trim() || null,
+    };
+
+    const { error } = editingLogId
+      ? await supabase.from("habit_logs").update(payload).eq("id", editingLogId)
+      : await supabase
+          .from("habit_logs")
+          .insert([{ ...payload, user_id: session.user.id }]);
+
     if (error) alert(error.message);
     else {
       fetchLogs();
@@ -1650,8 +1664,19 @@ const App = () => {
       setDuration("");
       setHabitType("continue");
       setLogDescription("");
+      setEditingLogId(null);
     }
     setIsLogging(false);
+  };
+
+  // ── Open the log modal pre-filled with an existing entry, for correcting typos ──
+  const openEditLog = (tk) => {
+    setEditingLogId(tk.id);
+    setSubject(tk.subject);
+    setDuration(String(tk.duration));
+    setHabitType(tk.habit_type);
+    setLogDescription(tk.description || "");
+    setIsModalOpen(true);
   };
 
   // ── Style helpers ──
@@ -2915,6 +2940,15 @@ const App = () => {
                   >
                     {tk.duration}m
                   </span>
+                  <Edit3
+                    size={13}
+                    style={{
+                      cursor: "pointer",
+                      color: th.textMuted,
+                      opacity: 0.5,
+                    }}
+                    onClick={() => openEditLog(tk)}
+                  />
                   <Trash2
                     size={13}
                     style={{
@@ -2922,7 +2956,7 @@ const App = () => {
                       color: th.textMuted,
                       opacity: 0.4,
                     }}
-                    onClick={() => deleteLog(tk.id)}
+                    onClick={() => deleteLog(tk.id, tk.subject)}
                   />
                 </div>
               </div>
@@ -4959,7 +4993,10 @@ const App = () => {
             justifyContent: "center",
             padding: "16px",
           }}
-          onClick={() => setIsModalOpen(false)}
+          onClick={() => {
+            setIsModalOpen(false);
+            setEditingLogId(null);
+          }}
         >
           <div
             className="modal-up"
@@ -4991,7 +5028,7 @@ const App = () => {
                     color: th.text,
                   }}
                 >
-                  Log Habit
+                  {editingLogId ? "Edit Habit" : "Log Habit"}
                 </h2>
                 <p
                   style={{
@@ -5000,11 +5037,16 @@ const App = () => {
                     color: th.textMuted,
                   }}
                 >
-                  Build momentum or log a disruptor
+                  {editingLogId
+                    ? "Fix a typo or correct the details"
+                    : "Build momentum or log a disruptor"}
                 </p>
               </div>
               <div
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setEditingLogId(null);
+                }}
                 style={{
                   width: "36px",
                   height: "36px",
@@ -5239,7 +5281,13 @@ const App = () => {
                 transition: "all .25s",
               }}
             >
-              {isLogging ? "Syncing to Hub..." : "Sync to Hub →"}
+              {isLogging
+                ? editingLogId
+                  ? "Saving..."
+                  : "Syncing to Hub..."
+                : editingLogId
+                  ? "Save Changes"
+                  : "Sync to Hub →"}
             </button>
           </div>
         </div>
