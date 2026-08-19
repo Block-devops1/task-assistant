@@ -4320,7 +4320,9 @@ const App = () => {
                     ))}
                   </div>
 
-                  {/* Custom time — any hour, not just the presets above */}
+                  {/* Custom hour — any hour of the day, not just the presets above.
+                      Hour-only by design: the cron check runs once per hour, so a
+                      minute picker would promise precision the system can't deliver. */}
                   <div style={{ marginBottom: "18px" }}>
                     <label
                       style={{
@@ -4331,24 +4333,33 @@ const App = () => {
                         marginBottom: "8px",
                       }}
                     >
-                      OR PICK A CUSTOM TIME
+                      OR PICK ANY HOUR
                     </label>
-                    <input
-                      type="time"
-                      value={`${String(reminderHour).padStart(2, "0")}:00`}
+                    <select
+                      value={reminderHour}
                       onChange={(e) => {
-                        const h = parseInt(e.target.value.split(":")[0], 10);
-                        if (!isNaN(h)) {
-                          setReminderHour(h);
-                          if (pushSubscribed) updateReminderTime(h);
-                        }
+                        const h = parseInt(e.target.value, 10);
+                        setReminderHour(h);
+                        if (pushSubscribed) updateReminderTime(h);
                       }}
                       style={{
                         ...inp,
                         marginBottom: 0,
                         width: "160px",
                       }}
-                    />
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>
+                          {h === 0
+                            ? "12 AM"
+                            : h < 12
+                              ? `${h} AM`
+                              : h === 12
+                                ? "12 PM"
+                                : `${h - 12} PM`}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Subscribe / Unsubscribe button */}
