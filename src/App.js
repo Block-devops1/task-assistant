@@ -79,7 +79,7 @@ const StackedRings = ({ build, stop, globalGoal, isDark }) => {
   const total = build + stop;
   const eff =
     total > 0 ? Math.max(0, Math.round(((build - stop) / total) * 100)) : 0;
-  const col = eff >= 85 ? "#10b981" : eff >= 50 ? "#3b82f6" : "#ef4444";
+  const col = eff >= 85 ? "#10b981" : eff >= 50 ? "#f59e0b" : "#ef4444";
   const tr = "stroke-dasharray 1.3s cubic-bezier(0.34,1.56,0.64,1)";
   return (
     <div
@@ -196,7 +196,7 @@ const StatCard = ({
   icon: Icon,
   label,
   value,
-  color = "#3b82f6",
+  color = "#f59e0b",
   unit = "",
   th,
   delta,
@@ -264,7 +264,7 @@ const StatCard = ({
 );
 
 // ─── TOGGLE ────────────────────────────────────────────────────────────────────
-const Toggle = ({ on, onToggle, activeColor = "#3b82f6", offColor }) => (
+const Toggle = ({ on, onToggle, activeColor = "#f59e0b", offColor }) => (
   <div
     onClick={onToggle}
     style={{
@@ -323,10 +323,10 @@ const FilterBar = ({ value, onChange, th }) => (
           fontSize: "0.73rem",
           fontWeight: "700",
           fontFamily: "'Inter', sans-serif",
-          background: value === f.id ? "#3b82f6" : th.quickBtn,
+          background: value === f.id ? "#f59e0b" : th.quickBtn,
           color: value === f.id ? "#fff" : th.textMuted,
           boxShadow:
-            value === f.id ? "0 2px 12px rgba(59,130,246,0.3)" : "none",
+            value === f.id ? "0 2px 12px rgba(245,158,11,0.3)" : "none",
           transition: "all 0.2s",
         }}
       >
@@ -490,12 +490,12 @@ const App = () => {
         logBg: "#0f172a",
         logBdr: "rgba(255,255,255,0.04)",
         selectBg: "#182234",
-        navActive: "rgba(59,130,246,0.10)",
-        navBdr: "rgba(59,130,246,0.22)",
+        navActive: "rgba(245,158,11,0.10)",
+        navBdr: "rgba(245,158,11,0.22)",
         quickBtn: "#1e293b",
         switchOff: "#334155",
-        briefBg: "rgba(59,130,246,0.05)",
-        briefBdr: "rgba(59,130,246,0.18)",
+        briefBg: "rgba(245,158,11,0.05)",
+        briefBdr: "rgba(245,158,11,0.18)",
         overlayBg: "rgba(2,6,23,0.88)",
         gridLine: "rgba(255,255,255,0.04)",
         insightBg: "rgba(255,255,255,0.03)",
@@ -515,12 +515,12 @@ const App = () => {
         logBg: "#ffffff",
         logBdr: "rgba(0,0,0,0.05)",
         selectBg: "#f1f5f9",
-        navActive: "rgba(59,130,246,0.07)",
-        navBdr: "rgba(59,130,246,0.20)",
+        navActive: "rgba(245,158,11,0.07)",
+        navBdr: "rgba(245,158,11,0.20)",
         quickBtn: "#f1f5f9",
         switchOff: "#cbd5e1",
-        briefBg: "rgba(59,130,246,0.04)",
-        briefBdr: "rgba(59,130,246,0.20)",
+        briefBg: "rgba(245,158,11,0.04)",
+        briefBdr: "rgba(245,158,11,0.20)",
         overlayBg: "rgba(10,20,40,0.72)",
         gridLine: "rgba(0,0,0,0.06)",
         insightBg: "rgba(0,0,0,0.025)",
@@ -576,7 +576,7 @@ const App = () => {
       .sp{animation:shieldPulse 2s ease-in-out infinite}
       button{font-family:'Inter',sans-serif;transition:transform .12s,opacity .12s}
       button:active{transform:scale(.97)!important}
-      input:focus,select:focus,textarea:focus{outline:none!important;border-color:#3b82f6!important;box-shadow:0 0 0 3px rgba(59,130,246,.15)!important}
+      input:focus,select:focus,textarea:focus{outline:none!important;border-color:#f59e0b!important;box-shadow:0 0 0 3px rgba(245,158,11,.15)!important}
       ::-webkit-scrollbar{width:3px}
       ::-webkit-scrollbar-track{background:transparent}
       ::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
@@ -1750,7 +1750,7 @@ const App = () => {
                 inset: 0,
                 opacity: 0.025,
                 backgroundImage:
-                  "linear-gradient(rgba(59,130,246,1) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,1) 1px,transparent 1px)",
+                  "linear-gradient(rgba(245,158,11,1) 1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,1) 1px,transparent 1px)",
                 backgroundSize: "44px 44px",
               }}
             />
@@ -1764,7 +1764,7 @@ const App = () => {
                 height: "700px",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle,rgba(59,130,246,.09) 0%,transparent 70%)",
+                  "radial-gradient(circle,rgba(245,158,11,.09) 0%,transparent 70%)",
                 pointerEvents: "none",
               }}
             />
@@ -1854,7 +1854,7 @@ const App = () => {
             style={{
               background: authLoading
                 ? "#1e3a8a"
-                : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                : "linear-gradient(135deg,#f59e0b,#b45309)",
               color: "#fff",
               padding: "16px",
               borderRadius: "14px",
@@ -1866,7 +1866,7 @@ const App = () => {
               letterSpacing: "1.5px",
               boxShadow: authLoading
                 ? "none"
-                : "0 4px 28px rgba(59,130,246,.3)",
+                : "0 4px 28px rgba(245,158,11,.3)",
             }}
           >
             {authLoading
@@ -1972,7 +1972,7 @@ const App = () => {
             pointerEvents: "none",
             opacity: 0.025,
             backgroundImage:
-              "linear-gradient(rgba(59,130,246,1) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,1) 1px,transparent 1px)",
+              "linear-gradient(rgba(245,158,11,1) 1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,1) 1px,transparent 1px)",
             backgroundSize: "44px 44px",
           }}
         />
@@ -1990,7 +1990,7 @@ const App = () => {
             pointerEvents: "none",
             borderRadius: "50%",
             background:
-              "radial-gradient(circle,rgba(59,130,246,.06) 0%,transparent 70%)",
+              "radial-gradient(circle,rgba(245,158,11,.06) 0%,transparent 70%)",
           }}
         />
       )}
@@ -2093,7 +2093,7 @@ const App = () => {
                     background:
                       activeTab === item.id ? th.navActive : "transparent",
                     border: `1px solid ${activeTab === item.id ? th.navBdr : "transparent"}`,
-                    color: activeTab === item.id ? "#3b82f6" : th.text,
+                    color: activeTab === item.id ? "#f59e0b" : th.text,
                     transition: "all .15s",
                   }}
                 >
@@ -2148,7 +2148,7 @@ const App = () => {
                 <Toggle
                   on={isDark}
                   onToggle={() => setIsDark((v) => !v)}
-                  activeColor="#3b82f6"
+                  activeColor="#f59e0b"
                   offColor={th.switchOff}
                 />
               </div>
@@ -2559,7 +2559,7 @@ const App = () => {
                   label="Total"
                   value={analytics.total}
                   unit="m"
-                  color="#3b82f6"
+                  color="#f59e0b"
                   th={th}
                 />
               </div>
@@ -2806,7 +2806,7 @@ const App = () => {
               className="fu5"
               onClick={() => setIsModalOpen(true)}
               style={{
-                background: "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                background: "linear-gradient(135deg,#f59e0b,#b45309)",
                 color: "#fff",
                 padding: "17px",
                 borderRadius: "16px",
@@ -2816,7 +2816,7 @@ const App = () => {
                 cursor: "pointer",
                 fontSize: "0.95rem",
                 letterSpacing: "0.5px",
-                boxShadow: "0 4px 28px rgba(59,130,246,.25)",
+                boxShadow: "0 4px 28px rgba(245,158,11,.25)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -2999,11 +2999,11 @@ const App = () => {
                     onClick={downloadReportPdf}
                     disabled={reportPdfLoading}
                     style={{
-                      background: "rgba(59,130,246,.1)",
-                      border: "1px solid rgba(59,130,246,.25)",
+                      background: "rgba(245,158,11,.1)",
+                      border: "1px solid rgba(245,158,11,.25)",
                       borderRadius: "8px",
                       padding: "6px 12px",
-                      color: "#3b82f6",
+                      color: "#f59e0b",
                       fontSize: "0.68rem",
                       fontWeight: "700",
                       cursor: reportPdfLoading ? "not-allowed" : "pointer",
@@ -3037,7 +3037,7 @@ const App = () => {
                     label="Eff"
                     value={weeklyReport.efficiency}
                     unit="%"
-                    color="#3b82f6"
+                    color="#f59e0b"
                     th={th}
                   />
                 </div>
@@ -3142,7 +3142,7 @@ const App = () => {
                   <span style={{ color: th.textMuted, margin: "0 6px" }}>
                     ·
                   </span>
-                  <span style={{ color: "#3b82f6" }}>
+                  <span style={{ color: "#f59e0b" }}>
                     {filteredStats.eff}% eff
                   </span>
                 </div>
@@ -3195,7 +3195,7 @@ const App = () => {
                 label="Eff"
                 value={`${filteredStats.eff}`}
                 unit="%"
-                color="#3b82f6"
+                color="#f59e0b"
                 th={th}
               />
             </div>
@@ -3362,7 +3362,7 @@ const App = () => {
                 label="Consistency"
                 value={`${deepAnalytics.consistency}`}
                 unit="%"
-                color="#3b82f6"
+                color="#f59e0b"
                 th={th}
               />
               <StatCard
@@ -3393,7 +3393,7 @@ const App = () => {
                   {
                     label: "This Week",
                     value: deepAnalytics.thisWeek,
-                    color: "#3b82f6",
+                    color: "#f59e0b",
                   },
                   {
                     label: "Last Week",
@@ -3455,7 +3455,7 @@ const App = () => {
                   style={{
                     flex: deepAnalytics.thisWeek || 1,
                     height: "6px",
-                    background: "#3b82f6",
+                    background: "#f59e0b",
                     borderRadius: "3px",
                     transition: "flex .8s ease",
                   }}
@@ -3581,7 +3581,7 @@ const App = () => {
                   <p
                     style={{
                       fontSize: "0.6rem",
-                      color: "#3b82f6",
+                      color: "#f59e0b",
                       letterSpacing: "1px",
                       margin: "0 0 8px",
                       textAlign: "center",
@@ -3911,7 +3911,7 @@ const App = () => {
                   marginBottom: "14px",
                 }}
               >
-                <Target size={18} color="#3b82f6" />
+                <Target size={18} color="#f59e0b" />
                 <span
                   style={{
                     fontWeight: "700",
@@ -3969,9 +3969,9 @@ const App = () => {
                       padding: "10px 2px",
                       borderRadius: "10px",
                       background:
-                        globalGoal === v ? "rgba(59,130,246,.18)" : th.quickBtn,
-                      border: `1px solid ${globalGoal === v ? "rgba(59,130,246,.5)" : "transparent"}`,
-                      color: globalGoal === v ? "#3b82f6" : th.textMuted,
+                        globalGoal === v ? "rgba(245,158,11,.18)" : th.quickBtn,
+                      border: `1px solid ${globalGoal === v ? "rgba(245,158,11,.5)" : "transparent"}`,
+                      color: globalGoal === v ? "#f59e0b" : th.textMuted,
                       cursor: "pointer",
                       fontSize: "0.72rem",
                       fontWeight: "700",
@@ -4199,7 +4199,7 @@ const App = () => {
                   {
                     label: "Consistency rate",
                     value: `${deepAnalytics.consistency}%`,
-                    color: "#3b82f6",
+                    color: "#f59e0b",
                   },
                   {
                     label: "Daily win rate (build > stop)",
@@ -4219,7 +4219,7 @@ const App = () => {
                   {
                     label: "This week's build time",
                     value: `${deepAnalytics.thisWeek} min`,
-                    color: "#3b82f6",
+                    color: "#f59e0b",
                   },
                 ].map(({ label, value, color }) => (
                   <div
@@ -4339,10 +4339,10 @@ const App = () => {
                           borderRadius: "10px",
                           background:
                             reminderHour === h
-                              ? "rgba(59,130,246,.18)"
+                              ? "rgba(245,158,11,.18)"
                               : th.quickBtn,
-                          border: `1px solid ${reminderHour === h ? "rgba(59,130,246,.5)" : "transparent"}`,
-                          color: reminderHour === h ? "#3b82f6" : th.textMuted,
+                          border: `1px solid ${reminderHour === h ? "rgba(245,158,11,.5)" : "transparent"}`,
+                          color: reminderHour === h ? "#f59e0b" : th.textMuted,
                           cursor: "pointer",
                           fontSize: "0.72rem",
                           fontWeight: "700",
@@ -4413,14 +4413,14 @@ const App = () => {
                       cursor: pushLoading ? "not-allowed" : "pointer",
                       background: pushSubscribed
                         ? "rgba(239,68,68,0.12)"
-                        : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                        : "linear-gradient(135deg,#f59e0b,#b45309)",
                       color: pushSubscribed ? "#ef4444" : "#fff",
                       border: pushSubscribed
                         ? "1px solid rgba(239,68,68,0.3)"
                         : "none",
                       boxShadow: pushSubscribed
                         ? "none"
-                        : "0 4px 20px rgba(59,130,246,.25)",
+                        : "0 4px 20px rgba(245,158,11,.25)",
                       transition: "all .25s",
                       fontFamily: "'Inter',sans-serif",
                     }}
@@ -4529,7 +4529,7 @@ const App = () => {
               <div
                 style={{ display: "flex", alignItems: "center", gap: "10px" }}
               >
-                <Zap size={16} color="#3b82f6" />
+                <Zap size={16} color="#f59e0b" />
                 <span
                   style={{
                     fontWeight: "700",
@@ -4587,7 +4587,7 @@ const App = () => {
                   <br />
                   <span
                     style={{
-                      color: "#3b82f6",
+                      color: "#f59e0b",
                       cursor: "pointer",
                       fontSize: "0.75rem",
                     }}
@@ -4623,7 +4623,7 @@ const App = () => {
                             : "18px 18px 18px 4px",
                         background:
                           msg.role === "user"
-                            ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
+                            ? "linear-gradient(135deg,#f59e0b,#b45309)"
                             : th.card,
                         border:
                           msg.role === "user"
@@ -4632,6 +4632,7 @@ const App = () => {
                         color: msg.role === "user" ? "#fff" : th.text,
                         fontSize: "0.88rem",
                         lineHeight: 1.6,
+                        whiteSpace: "pre-wrap",
                       }}
                     >
                       {msg.content}
@@ -4756,7 +4757,7 @@ const App = () => {
                 disabled={chatLoading || !chatInput.trim()}
                 style={{
                   background: chatInput.trim()
-                    ? "linear-gradient(135deg,#3b82f6,#1d4ed8)"
+                    ? "linear-gradient(135deg,#f59e0b,#b45309)"
                     : th.inputBg,
                   color: chatInput.trim() ? "#fff" : th.textMuted,
                   border: "none",
@@ -4875,7 +4876,7 @@ const App = () => {
                           <span
                             style={{
                               fontSize: "0.6rem",
-                              color: "#3b82f6",
+                              color: "#f59e0b",
                               marginLeft: "6px",
                             }}
                           >
@@ -5261,7 +5262,7 @@ const App = () => {
                 background:
                   !subject || !duration
                     ? th.inputBg
-                    : "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+                    : "linear-gradient(135deg,#f59e0b,#b45309)",
                 color: !subject || !duration ? th.textMuted : "#fff",
                 padding: "16px",
                 borderRadius: "16px",
@@ -5276,7 +5277,7 @@ const App = () => {
                 letterSpacing: "0.5px",
                 boxShadow:
                   subject && duration
-                    ? "0 4px 28px rgba(59,130,246,.25)"
+                    ? "0 4px 28px rgba(245,158,11,.25)"
                     : "none",
                 transition: "all .25s",
               }}
