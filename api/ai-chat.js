@@ -257,11 +257,11 @@ Use these to give the user a realistic picture of where they're heading. Don't s
     { role: "user", content: message },
   ];
 
-  // Admin gets gpt-oss-120b with qwen3.6-27b fallback — a separate quota
+  // Admin gets gpt-oss-120b with qwen3.8-27b fallback — a separate quota
   // bucket from what non-admins use, so a rate limit on one never touches
   // the other. Non-admins are already routed to gpt-oss-20b by checkAccess.
   const models = access.isAdmin
-    ? ["openai/gpt-oss-120b", "qwen/qwen3.6-27b"]
+    ? ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]
     : [access.model];
 
   const tryGroq = async (model, attempt = 1) => {

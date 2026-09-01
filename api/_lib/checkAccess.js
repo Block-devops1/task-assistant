@@ -94,7 +94,7 @@ async function checkAccess(authHeader) {
     ok: true,
     userId: user.id,
     isAdmin: false,
-    model: "qwen/qwen3.6-27b",
+    model: "qwen/qwen3.8-27b",
     strictnessLevel,
   };
 }
