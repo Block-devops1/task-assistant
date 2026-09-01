@@ -464,6 +464,7 @@ const App = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
   const [goals, setGoals] = useState([]);
+  const [memories, setMemories] = useState([]);
   const [weeklyChallenge, setWeeklyChallenge] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   // ── Push notification state ──
@@ -878,6 +879,46 @@ const App = () => {
     fetchGoals();
   };
 
+  // ── Long-term memory: facts worth keeping beyond goals (name, preferences,
+  // recurring context) — same pattern as goals, extracted via <<REMEMBER: text>> ──
+  const fetchMemories = async () => {
+    if (!session) return;
+    const { data } = await supabase
+      .from("lambert_memories")
+      .select("memory, id")
+      .eq("user_id", session.user.id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (data) setMemories(data);
+  };
+
+  const saveMemory = async (memoryText) => {
+    if (!session || !memoryText) return;
+    // Skip near-duplicates so restating the same fact doesn't clutter the list
+    const normalized = memoryText.trim().toLowerCase();
+    const alreadyExists = memories.some(
+      (m) => m.memory.trim().toLowerCase() === normalized,
+    );
+    if (alreadyExists) return;
+    await supabase.from("lambert_memories").insert([
+      {
+        user_id: session.user.id,
+        memory: memoryText,
+        is_active: true,
+      },
+    ]);
+    fetchMemories();
+  };
+
+  const dismissMemory = async (id) => {
+    await supabase
+      .from("lambert_memories")
+      .update({ is_active: false })
+      .eq("id", id);
+    fetchMemories();
+  };
+
   // ── Weekly Challenge: fetch or note absence ──
   const fetchWeeklyChallenge = async () => {
     if (!session) return;
@@ -916,6 +957,7 @@ const App = () => {
     if (session && !chatLoaded) {
       fetchChatHistory();
       fetchGoals();
+      fetchMemories();
       fetchWeeklyChallenge();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -959,6 +1001,7 @@ const App = () => {
           consistency: deepAnalytics.consistency,
           winRate: deepAnalytics.winRate,
           goals,
+          memories,
           weeklyChallenge,
           escalationLevel,
           predictions,
@@ -1001,6 +1044,13 @@ const App = () => {
       if (challengeMatch) {
         saveWeeklyChallenge(challengeMatch[1].trim());
         reply = reply.replace(/<<CHALLENGE:\s*.+?>>/i, "").trim();
+      }
+
+      // Extract and save any long-term facts Lambert flagged as worth remembering
+      const rememberMatches = [...reply.matchAll(/<<REMEMBER:\s*(.+?)>>/gi)];
+      if (rememberMatches.length) {
+        rememberMatches.forEach((m) => saveMemory(m[1].trim()));
+        reply = reply.replace(/<<REMEMBER:\s*.+?>>/gi, "").trim();
       }
       const assistantMsg = {
         role: "assistant",
@@ -3900,6 +3950,53 @@ const App = () => {
                 </div>
               )}
             </div>
+
+            {/* ── What Lambert Remembers ── */}
+            {memories.length > 0 && (
+              <div style={{ ...card, marginTop: "14px" }}>
+                <p
+                  style={{
+                    fontSize: "0.6rem",
+                    color: th.textMuted,
+                    letterSpacing: "2px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  WHAT LAMBERT REMEMBERS
+                </p>
+                {memories.map((m, i) => (
+                  <div
+                    key={m.id || i}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      background: th.selectBg,
+                      border: `1px solid ${th.cardBorder}`,
+                      marginBottom: "8px",
+                      fontSize: "0.85rem",
+                      color: th.text,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <span>{m.memory}</span>
+                    <span
+                      onClick={() => dismissMemory(m.id)}
+                      style={{
+                        cursor: "pointer",
+                        color: th.textMuted,
+                        fontSize: "0.75rem",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ✕ forget
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* ── Daily Time Target ── */}
             <div style={{ ...card, marginTop: "14px" }}>
