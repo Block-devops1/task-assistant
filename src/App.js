@@ -465,6 +465,8 @@ const App = () => {
   const [chatLoaded, setChatLoaded] = useState(false);
   const [goals, setGoals] = useState([]);
   const [memories, setMemories] = useState([]);
+  const [newMemoryText, setNewMemoryText] = useState("");
+  const [showAddMemory, setShowAddMemory] = useState(false);
   const [weeklyChallenge, setWeeklyChallenge] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   // ── Push notification state ──
@@ -911,7 +913,13 @@ const App = () => {
     fetchMemories();
   };
 
-  const dismissMemory = async (id) => {
+  const dismissMemory = async (id, memoryText) => {
+    if (
+      !window.confirm(
+        `Forget "${memoryText}"? Lambert won't recall this anymore.`,
+      )
+    )
+      return;
     await supabase
       .from("lambert_memories")
       .update({ is_active: false })
@@ -3930,6 +3938,12 @@ const App = () => {
                       <span>{g.goal}</span>
                       <span
                         onClick={async () => {
+                          if (
+                            !window.confirm(
+                              `Dismiss goal "${g.goal}"? Lambert will stop tracking it.`,
+                            )
+                          )
+                            return;
                           await supabase
                             .from("lambert_goals")
                             .update({ is_active: false })
@@ -3952,19 +3966,105 @@ const App = () => {
             </div>
 
             {/* ── What Lambert Remembers ── */}
-            {memories.length > 0 && (
-              <div style={{ ...card, marginTop: "14px" }}>
+            <div style={{ ...card, marginTop: "14px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "10px",
+                }}
+              >
                 <p
                   style={{
                     fontSize: "0.6rem",
                     color: th.textMuted,
                     letterSpacing: "2px",
-                    marginBottom: "10px",
+                    margin: 0,
                   }}
                 >
                   WHAT LAMBERT REMEMBERS
                 </p>
-                {memories.map((m, i) => (
+                <button
+                  onClick={() => setShowAddMemory((v) => !v)}
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: showAddMemory
+                      ? th.inputBg
+                      : "rgba(245,158,11,.12)",
+                    color: showAddMemory ? th.textMuted : "#f59e0b",
+                    fontSize: "1rem",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    lineHeight: 1,
+                  }}
+                  aria-label="Add something to remember"
+                >
+                  {showAddMemory ? "×" : "+"}
+                </button>
+              </div>
+
+              {showAddMemory && (
+                <div
+                  style={{ display: "flex", gap: "8px", marginBottom: "14px" }}
+                >
+                  <input
+                    placeholder="e.g. My name is Ugo, I prefer short replies..."
+                    value={newMemoryText}
+                    onChange={(e) => setNewMemoryText(e.target.value)}
+                    style={{ ...inp, marginBottom: 0, flex: 1 }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newMemoryText.trim()) {
+                        saveMemory(newMemoryText.trim());
+                        setNewMemoryText("");
+                        setShowAddMemory(false);
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (newMemoryText.trim()) {
+                        saveMemory(newMemoryText.trim());
+                        setNewMemoryText("");
+                        setShowAddMemory(false);
+                      }
+                    }}
+                    disabled={!newMemoryText.trim()}
+                    style={{
+                      padding: "0 18px",
+                      borderRadius: "12px",
+                      border: "none",
+                      background: newMemoryText.trim() ? "#f59e0b" : th.inputBg,
+                      color: newMemoryText.trim() ? "#fff" : th.textMuted,
+                      fontWeight: "700",
+                      cursor: newMemoryText.trim() ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              )}
+
+              {memories.length === 0 ? (
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: th.textMuted,
+                    opacity: 0.6,
+                    margin: 0,
+                  }}
+                >
+                  Nothing saved yet. Tell Lambert something worth remembering,
+                  or add it directly.
+                </p>
+              ) : (
+                memories.map((m, i) => (
                   <div
                     key={m.id || i}
                     style={{
@@ -3983,7 +4083,7 @@ const App = () => {
                   >
                     <span>{m.memory}</span>
                     <span
-                      onClick={() => dismissMemory(m.id)}
+                      onClick={() => dismissMemory(m.id, m.memory)}
                       style={{
                         cursor: "pointer",
                         color: th.textMuted,
@@ -3994,9 +4094,9 @@ const App = () => {
                       ✕ forget
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
 
             {/* ── Daily Time Target ── */}
             <div style={{ ...card, marginTop: "14px" }}>
