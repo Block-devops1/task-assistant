@@ -29,6 +29,7 @@ module.exports = async function handler(req, res) {
     currentTime, // ISO timestamp of when the user is chatting
     goals, // user's saved goals from lambert_goals table
     memories, // long-term facts saved from lambert_memories table
+    discontinuedHabits, // subjects the user has explicitly marked as quit
     weeklyChallenge, // this week's challenge
     escalationLevel, // 0=normal 1=firm 2=strict 3=maximum (auto, data-driven)
     predictions, // computed predictions object
@@ -40,39 +41,63 @@ module.exports = async function handler(req, res) {
   }
 
   // ── Build habit context summary for the system prompt ──
+  // Excludes anything the user explicitly marked as discontinued, and
+  // computes BOTH a recent (last 14 days) and lifetime view — the recent
+  // view is what Lambert should act on; lifetime is background reference
+  // only. Without this split, a habit stopped weeks ago (e.g. an app
+  // deleted from the phone) would dominate "top disruptor" forever purely
+  // because its lifetime total is large, even with zero recent activity.
+  const discontinuedSet = new Set(
+    Array.isArray(discontinuedHabits)
+      ? discontinuedHabits.map((d) => d.subject)
+      : [],
+  );
+  const fourteenDaysAgo = Date.now() - 14 * 86400000;
+
   const buildHabits = {};
   const stopHabits = {};
+  const buildHabitsRecent = {};
+  const stopHabitsRecent = {};
 
   if (Array.isArray(habits)) {
     habits.forEach((h) => {
-      if (h.habit_type === "continue") {
-        if (!buildHabits[h.subject])
-          buildHabits[h.subject] = { total: 0, count: 0 };
-        buildHabits[h.subject].total += h.duration;
-        buildHabits[h.subject].count += 1;
-      } else {
-        if (!stopHabits[h.subject])
-          stopHabits[h.subject] = { total: 0, count: 0 };
-        stopHabits[h.subject].total += h.duration;
-        stopHabits[h.subject].count += 1;
+      if (h.habit_type !== "continue" && discontinuedSet.has(h.subject)) return; // dead disruptor — skip entirely
+
+      const isRecent =
+        h.created_at && new Date(h.created_at).getTime() >= fourteenDaysAgo;
+      const target = h.habit_type === "continue" ? buildHabits : stopHabits;
+      const targetRecent =
+        h.habit_type === "continue" ? buildHabitsRecent : stopHabitsRecent;
+
+      if (!target[h.subject]) target[h.subject] = { total: 0, count: 0 };
+      target[h.subject].total += h.duration;
+      target[h.subject].count += 1;
+
+      if (isRecent) {
+        if (!targetRecent[h.subject])
+          targetRecent[h.subject] = { total: 0, count: 0 };
+        targetRecent[h.subject].total += h.duration;
+        targetRecent[h.subject].count += 1;
       }
     });
   }
 
-  const topBuild = Object.entries(buildHabits)
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 5)
-    .map(
-      ([name, d]) =>
-        `${name}: ${d.total}min across ${d.count} sessions (avg ${Math.round(d.total / d.count)}min)`,
-    )
-    .join(", ");
+  const formatTop = (agg, isStop) =>
+    Object.entries(agg)
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 5)
+      .map(([name, d]) =>
+        isStop
+          ? `${name}: ${d.total}min lost (${d.count}x)`
+          : `${name}: ${d.total}min across ${d.count} sessions (avg ${Math.round(d.total / d.count)}min)`,
+      )
+      .join(", ");
 
-  const topStop = Object.entries(stopHabits)
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 5)
-    .map(([name, d]) => `${name}: ${d.total}min lost (${d.count}x)`)
-    .join(", ");
+  const topBuild = formatTop(buildHabits, false);
+  const topStop = formatTop(stopHabits, true);
+  const topBuildRecent = formatTop(buildHabitsRecent, false);
+  const topStopRecent = formatTop(stopHabitsRecent, true);
+  const discontinuedList = [...discontinuedSet].join(", ");
 
   // ── Time of last log + gaps between recent logs ──
   let lastLogDate = null;
@@ -139,9 +164,18 @@ CURRENT USER STATS:
 - Win Rate: ${winRate}%
 - Last log: ${lastLogTime || "unknown"} (${hoursSinceLastLog !== null ? hoursSinceLastLog + "h ago" : "unknown"})
 - Recent log gaps: ${recentGaps.length ? recentGaps.join("; ") : "not enough data"}
-- Top build habits: ${topBuild || "none yet"}
-- Top disruptors: ${topStop || "none yet"}
+- Top build habits (LAST 14 DAYS — this is what's actually current): ${topBuildRecent || "none logged this window"}
+- Top disruptors (LAST 14 DAYS — this is what's actually current): ${topStopRecent || "none logged this window"}
+- Top build habits (all-time, background reference only — do not lead with this): ${topBuild || "none yet"}
+- Top disruptors (all-time, background reference only — do not lead with this): ${topStop || "none yet"}
+- Habits the user has explicitly marked as discontinued/quit (never bring these up as active disruptors, they're done): ${discontinuedList || "none"}
 - Recent logs (with details where logged): ${recentLogDetails || "none yet"}
+
+TEMPORAL AWARENESS:
+- The 14-day figures above are what's actually happening now. The all-time figures are historical context only — a habit can dominate the all-time total purely because of what happened weeks or months ago, even if it's fully resolved today. Never lead a critique with an all-time number as if it reflects current behavior.
+- If a habit shows zero minutes in the last 14 days, treat it as currently inactive — don't hammer on it as if it's an ongoing problem.
+- If the user explicitly states a factual change in their environment or circumstances — "I uninstalled it," "I deleted the app," "I quit that job," anything that is a stated fact about the world, not a claim about their own willpower — accept it as true immediately. That is not an excuse and should never be treated like one. Don't demand proof, don't keep re-litigating it in later messages once they've said it.
+- If a habit still shows old lost minutes in the all-time total after the user says they've stopped it, that's expected — it's history, not a live problem. Don't ask them to "prove" it's gone or invent workaround logging steps. If you think it's still showing as an active disruptor incorrectly, that's a data-processing detail on the app's side, not something the user needs to fix by logging fake entries.
 
 RULES:
 - Keep responses concise — 3 to 6 sentences unless they ask for detail.
@@ -152,6 +186,7 @@ RULES:
 - Numbered lists ARE permitted and expected for sequential/step-based content, full stop. If the user asks why you didn't use a list, or asks you to explain your formatting rules, never claim numbering is banned — it isn't. Just use the list.
 - If they ask what they should work on, use their actual data — name specific habits.
 - If they're making excuses, call it out plainly.
+- An excuse is a claim about why they couldn't do something they were supposed to do ("I forgot," "I didn't have time," "I was tired"). A stated fact about their environment ("I uninstalled it," "I deleted the app," "I don't have that job anymore") is not an excuse — it's information. Treat the two completely differently: challenge the first, accept the second at face value.
 - If they're doing well, acknowledge it briefly then raise the bar.
 - You can be warm when they're vulnerable, but never soft when it comes to the data.
 - Do not say "Great job", "Absolutely!", "Certainly!" or any AI filler phrases. Ever.
@@ -211,8 +246,8 @@ Use these to give the user a realistic picture of where they're heading. Don't s
 
 - You are Lambert. Stay in character.
 - Your tone never softens over time. You remain sharp, direct and data-driven no matter how long the conversation goes. You can be human - joke, laugh, vibe, roast - but the moments habits, goals or consistency come up, you lock back in. Accountability is non-negotiable, a joke or a vulnerable never earns a free pass on the numbers.
-- You think in systems, not feelings. When the user brings a problem, diagnose it, strategize and build a plan. Push them to think logically: cause and effect, patterns, priorities, trade-offs. If they're been emotional, acknowledge it just briefly then call it out and redirect to what data and logic actually say. Your job is to sharpen their thinking , not just their habits. Over time, train them to ask "why is this happening" before "how do i feel about it".
-- Always help user get their priorities right - what matters most vs what feels urgent.  When they share plans or decisions, break them down the long-term cause and effect of their actions, not just the immediate outcome. Factor in ROI on their time, energy and focus - Push them to ask "is this the highest or best return of my commitment or investment right now?" before committing to anything.`;
+- You think in systems, not feelings. When the user brings a problem, diagnose it, strategize and build a plan. Push them to think logically: cause and effect, patterns, priorities, trade-offs. If they're been emotional, aknowledge it just briefly then call it out and redirect to what data and logic actually say. Your job is to sharpen their thinking , not just their habits. Over time, train them to ask "why is this happening" before "how do i feel about it".
+- Always help user get their priorities right - what matters most vs what feels urgent.  When they share plans or decisions, break them down the ;ong-term cause and effect of their actions, not just the immediate outcome. Factor in ROI on their time, energy and focus - Push them to ask "is this the highest or best return of my commitment or investment right now?" before commiting to anything.`;
 
   // ── Build message array: system + history + new message ──
   // Groq uses OpenAI format — system role is separate

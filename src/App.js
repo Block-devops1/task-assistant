@@ -337,7 +337,7 @@ const FilterBar = ({ value, onChange, th }) => (
 );
 
 // ─── HABIT RANK ────────────────────────────────────────────────────────────────
-const HabitRank = ({ habits, type, th }) => (
+const HabitRank = ({ habits, type, th, onQuit }) => (
   <div>
     <p
       style={{
@@ -379,16 +379,32 @@ const HabitRank = ({ habits, type, th }) => (
               </span>
               {name}
             </span>
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: "0.78rem",
-                fontWeight: "700",
-                color: type === "build" ? "#10b981" : "#ef4444",
-              }}
-            >
-              {mins}m
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {type === "stop" && onQuit && (
+                <span
+                  onClick={() => onQuit(name)}
+                  style={{
+                    fontSize: "0.62rem",
+                    color: "#10b981",
+                    cursor: "pointer",
+                    fontWeight: "700",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  ✓ Quit this
+                </span>
+              )}
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "0.78rem",
+                  fontWeight: "700",
+                  color: type === "build" ? "#10b981" : "#ef4444",
+                }}
+              >
+                {mins}m
+              </span>
+            </div>
           </div>
           <div
             style={{
@@ -422,6 +438,7 @@ const App = () => {
   // ── Core state ──
   const [session, setSession] = useState(null);
   const aiFetchedRef = useRef(false); // ensures fetchAI() auto-fires once per session, not on every log
+  const chatContainerRef = useRef(null); // scroll container — only auto-scroll on NEW messages, not every render
   const [accessStatus, setAccessStatus] = useState(null); // 'pending' | 'approved' | 'blacklisted' | null (loading)
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
@@ -460,11 +477,23 @@ const App = () => {
   const [goalHabitType, setGoalHabitType] = useState("build"); // build or stop goal
   // ── Chat state ──
   const [chatHistory, setChatHistory] = useState([]); // [{role, content, id}]
+
+  // ── Scroll chat to bottom only when a message is actually added — not on
+  // every render (minimizing the app, copying text, unrelated state changes
+  // were all previously resetting scroll position because the old ref
+  // callback fired on every render). ──
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
+    }
+  }, [chatHistory.length]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatLoaded, setChatLoaded] = useState(false);
   const [goals, setGoals] = useState([]);
   const [memories, setMemories] = useState([]);
+  const [discontinuedHabits, setDiscontinuedHabits] = useState([]); // subjects the user has explicitly marked as quit
   const [newMemoryText, setNewMemoryText] = useState("");
   const [showAddMemory, setShowAddMemory] = useState(false);
   const [weeklyChallenge, setWeeklyChallenge] = useState(null);
@@ -927,6 +956,52 @@ const App = () => {
     fetchMemories();
   };
 
+  // ── Discontinued habits: a real "I quit this" marker, so a habit you
+  // stopped weeks ago stops dominating the disruptor list forever. This
+  // replaces the fake "log a 0-minute entry" workaround with an actual
+  // feature — no fake data added to habit_logs. ──
+  const fetchDiscontinuedHabits = async () => {
+    if (!session) return;
+    const { data } = await supabase
+      .from("discontinued_habits")
+      .select("subject, discontinued_at")
+      .eq("user_id", session.user.id);
+    if (data) setDiscontinuedHabits(data);
+  };
+
+  const markHabitDiscontinued = async (subject) => {
+    if (!session) return;
+    if (
+      !window.confirm(
+        `Mark "${subject}" as quit? Lambert will stop treating it as an active disruptor.`,
+      )
+    )
+      return;
+    await supabase
+      .from("discontinued_habits")
+      .upsert(
+        [
+          {
+            user_id: session.user.id,
+            subject,
+            discontinued_at: new Date().toISOString(),
+          },
+        ],
+        { onConflict: "user_id,subject" },
+      );
+    fetchDiscontinuedHabits();
+  };
+
+  const unmarkHabitDiscontinued = async (subject) => {
+    if (!session) return;
+    await supabase
+      .from("discontinued_habits")
+      .delete()
+      .eq("user_id", session.user.id)
+      .eq("subject", subject);
+    fetchDiscontinuedHabits();
+  };
+
   // ── Weekly Challenge: fetch or note absence ──
   const fetchWeeklyChallenge = async () => {
     if (!session) return;
@@ -966,6 +1041,7 @@ const App = () => {
       fetchChatHistory();
       fetchGoals();
       fetchMemories();
+      fetchDiscontinuedHabits();
       fetchWeeklyChallenge();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1010,6 +1086,7 @@ const App = () => {
           winRate: deepAnalytics.winRate,
           goals,
           memories,
+          discontinuedHabits,
           weeklyChallenge,
           escalationLevel,
           predictions,
@@ -1269,13 +1346,15 @@ const App = () => {
 
   // ── Deep analytics (all-time) ──
   const deepAnalytics = useMemo(() => {
+    const discontinuedSet = new Set(discontinuedHabits.map((d) => d.subject));
     // Top build/stop habits by total minutes
     const buildAgg = {},
       stopAgg = {};
     tasks.forEach((t) => {
       if (t.habit_type === "continue")
         buildAgg[t.subject] = (buildAgg[t.subject] || 0) + t.duration;
-      else stopAgg[t.subject] = (stopAgg[t.subject] || 0) + t.duration;
+      else if (!discontinuedSet.has(t.subject))
+        stopAgg[t.subject] = (stopAgg[t.subject] || 0) + t.duration;
     });
     const topBuild = Object.entries(buildAgg)
       .sort((a, b) => b[1] - a[1])
@@ -1387,7 +1466,7 @@ const App = () => {
       winRate,
       avgSession,
     };
-  }, [tasks]);
+  }, [tasks, discontinuedHabits]);
 
   // ── Known subjects for autocomplete (most recently used first) ──
   const knownSubjects = useMemo(() => {
@@ -3552,6 +3631,7 @@ const App = () => {
                     habits={deepAnalytics.topStop}
                     type="stop"
                     th={th}
+                    onQuit={markHabitDiscontinued}
                   />
                 </div>
               </div>
@@ -4758,9 +4838,7 @@ const App = () => {
                 gap: "12px",
                 paddingBottom: "12px",
               }}
-              ref={(el) => {
-                if (el) el.scrollTop = el.scrollHeight;
-              }}
+              ref={chatContainerRef}
               onMouseEnter={() => {
                 if (!chatLoaded) fetchChatHistory();
               }}
