@@ -977,18 +977,16 @@ const App = () => {
       )
     )
       return;
-    await supabase
-      .from("discontinued_habits")
-      .upsert(
-        [
-          {
-            user_id: session.user.id,
-            subject,
-            discontinued_at: new Date().toISOString(),
-          },
-        ],
-        { onConflict: "user_id,subject" },
-      );
+    await supabase.from("discontinued_habits").upsert(
+      [
+        {
+          user_id: session.user.id,
+          subject,
+          discontinued_at: new Date().toISOString(),
+        },
+      ],
+      { onConflict: "user_id,subject" },
+    );
     fetchDiscontinuedHabits();
   };
 
@@ -3636,6 +3634,55 @@ const App = () => {
                 </div>
               </div>
             </div>
+
+            {/* Discontinued (quit) habits — restore to bring back into disruptor tracking */}
+            {discontinuedHabits.length > 0 && (
+              <div style={{ ...card, marginBottom: "14px" }}>
+                <p
+                  style={{
+                    margin: "0 0 12px",
+                    fontSize: "0.6rem",
+                    color: th.textMuted,
+                    letterSpacing: "2px",
+                  }}
+                >
+                  ✓ QUIT LIST
+                </p>
+                {discontinuedHabits.map((d) => (
+                  <div
+                    key={d.subject}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.82rem",
+                        fontWeight: "600",
+                        color: th.text,
+                      }}
+                    >
+                      {d.subject}
+                    </span>
+                    <span
+                      onClick={() => unmarkHabitDiscontinued(d.subject)}
+                      style={{
+                        fontSize: "0.62rem",
+                        color: "#f59e0b",
+                        cursor: "pointer",
+                        fontWeight: "700",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      ↺ Restore
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Pie */}
             <div style={card}>
