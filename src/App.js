@@ -442,6 +442,8 @@ const App = () => {
   const [accessStatus, setAccessStatus] = useState(null); // 'pending' | 'approved' | 'blacklisted' | null (loading)
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsage, setAdminUsage] = useState([]);
+  const [adminUsageLoading, setAdminUsageLoading] = useState(false);
   const [adminLoading, setAdminLoading] = useState(false);
   const [strictnessLevel, setStrictnessLevel] = useState(1);
   const [weeklyReport, setWeeklyReport] = useState(null);
@@ -828,6 +830,27 @@ const App = () => {
     }
   };
 
+  // ── Admin: usage/activity ranking across all approved users ──
+  const fetchAdminUsage = async () => {
+    if (!session || !isAdmin) return;
+    setAdminUsageLoading(true);
+    try {
+      const res = await fetch("/api/admin-usage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.users) setAdminUsage(data.users);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAdminUsageLoading(false);
+    }
+  };
+
   // ── Admin: approve / blacklist / reset a user ──
   const setUserStatus = async (targetUserId, newStatus) => {
     if (!session || !isAdmin) return;
@@ -977,16 +1000,18 @@ const App = () => {
       )
     )
       return;
-    await supabase.from("discontinued_habits").upsert(
-      [
-        {
-          user_id: session.user.id,
-          subject,
-          discontinued_at: new Date().toISOString(),
-        },
-      ],
-      { onConflict: "user_id,subject" },
-    );
+    await supabase
+      .from("discontinued_habits")
+      .upsert(
+        [
+          {
+            user_id: session.user.id,
+            subject,
+            discontinued_at: new Date().toISOString(),
+          },
+        ],
+        { onConflict: "user_id,subject" },
+      );
     fetchDiscontinuedHabits();
   };
 
@@ -1157,7 +1182,10 @@ const App = () => {
   };
 
   useEffect(() => {
-    if (session && isAdmin) fetchAdminUsers();
+    if (session && isAdmin) {
+      fetchAdminUsers();
+      fetchAdminUsage();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, isAdmin]);
 
@@ -3635,55 +3663,6 @@ const App = () => {
               </div>
             </div>
 
-            {/* Discontinued (quit) habits — restore to bring back into disruptor tracking */}
-            {discontinuedHabits.length > 0 && (
-              <div style={{ ...card, marginBottom: "14px" }}>
-                <p
-                  style={{
-                    margin: "0 0 12px",
-                    fontSize: "0.6rem",
-                    color: th.textMuted,
-                    letterSpacing: "2px",
-                  }}
-                >
-                  ✓ QUIT LIST
-                </p>
-                {discontinuedHabits.map((d) => (
-                  <div
-                    key={d.subject}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.82rem",
-                        fontWeight: "600",
-                        color: th.text,
-                      }}
-                    >
-                      {d.subject}
-                    </span>
-                    <span
-                      onClick={() => unmarkHabitDiscontinued(d.subject)}
-                      style={{
-                        fontSize: "0.62rem",
-                        color: "#f59e0b",
-                        cursor: "pointer",
-                        fontWeight: "700",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      ↺ Restore
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Pie */}
             <div style={card}>
               <p
@@ -5104,6 +5083,137 @@ const App = () => {
         {/* ════ ADMIN ════ */}
         {activeTab === "admin" && isAdmin && (
           <div className="fu">
+            {/* ── User Activity ── */}
+            <div style={{ ...card, marginBottom: "18px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "14px",
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.6rem",
+                    color: th.textMuted,
+                    letterSpacing: "2px",
+                  }}
+                >
+                  USER ACTIVITY — MOST ACTIVE FIRST
+                </p>
+                <button
+                  onClick={fetchAdminUsage}
+                  disabled={adminUsageLoading}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: adminUsageLoading ? "not-allowed" : "pointer",
+                    color: th.textMuted,
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "4px",
+                  }}
+                >
+                  <RefreshCw
+                    size={13}
+                    style={{
+                      animation: adminUsageLoading
+                        ? "spin 1s linear infinite"
+                        : "none",
+                    }}
+                  />
+                </button>
+              </div>
+
+              {adminUsage.length === 0 ? (
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: th.textMuted,
+                    opacity: 0.5,
+                    margin: 0,
+                  }}
+                >
+                  {adminUsageLoading ? "Loading..." : "No activity data yet."}
+                </p>
+              ) : (
+                (() => {
+                  const maxTotal = Math.max(
+                    ...adminUsage.map((u) => u.totalMessages),
+                    1,
+                  );
+                  return adminUsage.map((u, i) => (
+                    <div key={u.email} style={{ marginBottom: "14px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: "5px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "0.8rem",
+                            fontWeight: "600",
+                            color: th.text,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            maxWidth: "60%",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontFamily: "'JetBrains Mono', monospace",
+                              fontSize: "0.65rem",
+                              opacity: 0.4,
+                              marginRight: "6px",
+                            }}
+                          >
+                            #{i + 1}
+                          </span>
+                          {u.email}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: "0.72rem",
+                            color: th.textMuted,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {u.totalMessages} total · {u.avgPerDay}/day avg
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          height: "4px",
+                          background: th.inputBg,
+                          borderRadius: "2px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            borderRadius: "2px",
+                            width: `${Math.round((u.totalMessages / maxTotal) * 100)}%`,
+                            background:
+                              "linear-gradient(90deg,#f59e0b,#b45309)",
+                            transition:
+                              "width 0.9s cubic-bezier(0.34,1.56,0.64,1)",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ));
+                })()
+              )}
+            </div>
+
             <div
               style={{
                 display: "flex",
