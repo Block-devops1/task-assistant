@@ -4204,6 +4204,53 @@ const App = () => {
               )}
             </div>
 
+            {/* ── Discontinued Habits ── */}
+            {discontinuedHabits.length > 0 && (
+              <div style={{ ...card, marginTop: "14px" }}>
+                <p
+                  style={{
+                    fontSize: "0.6rem",
+                    color: th.textMuted,
+                    letterSpacing: "2px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  MARKED AS QUIT
+                </p>
+                {discontinuedHabits.map((d) => (
+                  <div
+                    key={d.subject}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      background: th.selectBg,
+                      border: `1px solid ${th.cardBorder}`,
+                      marginBottom: "8px",
+                      fontSize: "0.85rem",
+                      color: th.text,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <span>{d.subject}</span>
+                    <span
+                      onClick={() => unmarkHabitDiscontinued(d.subject)}
+                      style={{
+                        cursor: "pointer",
+                        color: th.textMuted,
+                        fontSize: "0.75rem",
+                        flexShrink: 0,
+                      }}
+                    >
+                      ↺ undo
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* ── Daily Time Target ── */}
             <div style={{ ...card, marginTop: "14px" }}>
               <div
